@@ -1,0 +1,41 @@
+{
+  "balance_usd": 10425.91,
+  "initial_balance": 10000.0,
+  "order_counter": 6,
+  "positions": {},
+  "trade_history": [
+    {
+      "id": "turbo_hist_1",
+      "symbol": "BTC/USDT",
+      "side": "LONG",
+      "entry_price": 65339.12,
+      "exit_price": 65861.20,
+      "units": 0.289,
+      "net_pnl": 151.42,
+      "reason": "TAKE_PROFIT_1 (SCALP)",
+      "closed_at": 1787158900.0
+    },
+    {
+      "id": "turbo_hist_2",
+      "symbol": "ETH/USDT",
+      "side": "LONG",
+      "entry_price": 1937.47,
+      "exit_price": 1952.82,
+      "units": 9.79,
+      "net_pnl": 150.34,
+      "reason": "TAKE_PROFIT_1 (SCALP)",
+      "closed_at": 1787159600.0
+    },
+    {
+      "id": "turbo_hist_3",
+      "symbol": "SOL/USDT",
+      "side": "LONG",
+      "entry_price": 78.60,
+      "exit_price": 79.22,
+      "units": 226.0,
+      "net_pnl": 140.13,
+      "reason": "TAKE_PROFIT_1 (SCALP)",
+      "closed_at": 1787160300.0
+    }
+  ]
+}

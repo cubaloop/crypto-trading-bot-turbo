@@ -326,6 +326,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             border: 1px solid var(--border);
             border-radius: 12px;
             overflow-x: auto;
+            max-height: 440px;
+            overflow-y: auto;
         }
 
         table {
@@ -566,6 +568,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                     <table>
                         <thead>
                             <tr>
+                                <th>Hora</th>
                                 <th>Par</th>
                                 <th>Lado</th>
                                 <th>Entrada</th>
@@ -576,7 +579,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                         </thead>
                         <tbody id="history-tbody">
                             <tr>
-                                <td colspan="6" class="empty-state">Aún no hay operaciones cerradas en esta sesión.</td>
+                                <td colspan="7" class="empty-state">Aún no hay operaciones cerradas en esta sesión.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -783,13 +786,15 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             const histTbody = document.getElementById('history-tbody');
             const history = data.trade_history || [];
             if (history.length === 0) {
-                histTbody.innerHTML = '<tr><td colspan="6" class="empty-state">Aún no hay operaciones cerradas en esta sesión.</td></tr>';
+                histTbody.innerHTML = '<tr><td colspan="7" class="empty-state">Aún no hay operaciones cerradas en esta sesión.</td></tr>';
             } else {
                 let histRows = '';
-                for (const trade of history.slice(-5).reverse()) {
+                for (const trade of history.slice().reverse()) {
                     const isWin = trade.net_pnl >= 0;
+                    const timeStr = trade.closed_at ? new Date(trade.closed_at * 1000).toLocaleTimeString() : new Date().toLocaleTimeString();
                     histRows += `
                         <tr>
+                            <td class="mono" style="color: var(--text-muted); font-size: 11px;">${timeStr}</td>
                             <td><strong>${trade.symbol}</strong></td>
                             <td><span class="side-badge ${trade.side === 'LONG' ? 'side-long' : 'side-short'}">${trade.side}</span></td>
                             <td class="mono">$${trade.entry_price.toFixed(2)}</td>

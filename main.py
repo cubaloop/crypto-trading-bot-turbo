@@ -146,7 +146,7 @@ class TurboTradingEngine:
                     "circuit_breaker_active": self.risk_manager.is_circuit_breaker_active,
                     "current_prices": current_prices,
                     "positions": positions_dict,
-                    "trade_history": self.executor.trade_history[-10:],
+                    "trade_history": self.executor.trade_history[-100:],
                     "news_history": news_list
                 })
 
