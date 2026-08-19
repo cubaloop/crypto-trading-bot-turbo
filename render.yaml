@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: crypto-trading-bot-turbo
+    runtime: python
+    region: frankfurt # Frankfurt (Alemania - Cero restricciones geográficas)
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: TRADING_MODE
+        value: paper
+      - key: EXCHANGE_ID
+        value: bybit
+      - key: USE_TESTNET
+        value: "true"
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 8000
