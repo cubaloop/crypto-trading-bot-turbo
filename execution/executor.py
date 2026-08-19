@@ -22,6 +22,8 @@ class Position:
     opened_at: float
     notional_usd: float
 
+from data.persistence import StatePersistence
+
 class PaperExecutor:
     def __init__(
         self,
@@ -36,6 +38,39 @@ class PaperExecutor:
         self.positions: Dict[str, Position] = {}
         self.trade_history: List[Dict] = []
         self._order_counter = 0
+
+        # Cargar estado previo desde disco si existe
+        saved_state = StatePersistence.load_state()
+        if saved_state:
+            self.balance_usd = saved_state.get("balance_usd", initial_balance_usd)
+            self.initial_balance = saved_state.get("initial_balance", initial_balance_usd)
+            self._order_counter = saved_state.get("order_counter", 0)
+            self.trade_history = saved_state.get("trade_history", [])
+            for sym, pdata in saved_state.get("positions", {}).items():
+                self.positions[sym] = Position(
+                    id=pdata.get("id", ""),
+                    symbol=pdata.get("symbol", sym),
+                    side=pdata.get("side", "LONG"),
+                    entry_price=pdata.get("entry_price", 0.0),
+                    units=pdata.get("units", 0.0),
+                    stop_loss=pdata.get("stop_loss", 0.0),
+                    take_profit=pdata.get("take_profit", 0.0),
+                    take_profit_2=pdata.get("take_profit_2", 0.0),
+                    highest_price=pdata.get("highest_price", pdata.get("entry_price", 0.0)),
+                    lowest_price=pdata.get("lowest_price", pdata.get("entry_price", 0.0)),
+                    profit_lock_stage=pdata.get("profit_lock_stage", 0),
+                    opened_at=pdata.get("opened_at", time.time()),
+                    notional_usd=pdata.get("notional_usd", 0.0)
+                )
+
+    def _persist(self):
+        StatePersistence.save_state(
+            balance_usd=self.balance_usd,
+            initial_balance=self.initial_balance,
+            positions=self.positions,
+            trade_history=self.trade_history,
+            order_counter=self._order_counter
+        )
 
     def get_equity(self, current_prices: Dict[str, float]) -> float:
         unrealized_pnl = 0.0
@@ -77,6 +112,7 @@ class PaperExecutor:
             notional_usd=notional
         )
         self.positions[signal.symbol] = pos
+        self._persist()
         logger.info(f"⚡ [TURBO EXECUTION] {side} {units:.4f} {signal.symbol} a ${fill_price:,.2f} | SL: ${pos.stop_loss:,.2f} | TP1: ${pos.take_profit:,.2f} | TP2: ${pos.take_profit_2:,.2f}")
         return pos
 
@@ -191,6 +227,10 @@ class PaperExecutor:
                 logger.info(f"{emoji} ({reason}): {symbol} PnL Neto: ${net_pnl:+.2f} | Saldo: ${self.balance_usd:,.2f}")
 
         for s in symbols_to_close:
-            del self.positions[s]
+            if s in self.positions:
+                del self.positions[s]
+
+        if closed_trades:
+            self._persist()
 
         return closed_trades

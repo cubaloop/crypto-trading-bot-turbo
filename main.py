@@ -23,6 +23,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("KuQuantTurboMain")
 
+from data.keep_alive import KeepAliveMesh
+
 class TurboTradingEngine:
     def __init__(self):
         self.market_stream = MarketStream(exchange_id=config.exchange_id)
@@ -36,6 +38,7 @@ class TurboTradingEngine:
         )
         self.executor = PaperExecutor(initial_balance_usd=config.initial_virtual_balance)
         self.web_server = DashboardServer(host=config.host, port=config.port)
+        self.keep_alive = KeepAliveMesh(interval_seconds=420)
         
         self.news_history = []
         self.iteration = 0
@@ -52,6 +55,7 @@ class TurboTradingEngine:
 
         await self.market_stream.initialize()
         await self.web_server.start()
+        self.keep_alive.start()
 
     async def run(self, max_iterations: int = None):
         self.is_running = True
