@@ -18,6 +18,7 @@ class Position:
     take_profit_2: float
     highest_price: float
     lowest_price: float
+    profit_lock_stage: int  # 0: Ninguno, 1: Break-Even, 2: Lock 50%, 3: Chandelier Trailing
     opened_at: float
     notional_usd: float
 
@@ -71,6 +72,7 @@ class PaperExecutor:
             take_profit_2=signal.take_profit_2,
             highest_price=fill_price,
             lowest_price=fill_price,
+            profit_lock_stage=0,
             opened_at=time.time(),
             notional_usd=notional
         )
@@ -87,7 +89,6 @@ class PaperExecutor:
             if not curr_p:
                 continue
 
-            # Actualizar extremos de precio para Trailing Stop
             if curr_p > pos.highest_price:
                 pos.highest_price = curr_p
             if curr_p < pos.lowest_price:
@@ -97,12 +98,28 @@ class PaperExecutor:
             hit_sl = False
             reason = "NONE"
 
+            # === SISTEMA DINÁMICO DE BLOQUEO DE BENEFICIOS (TIERED PROFIT LOCK) ===
             if pos.side == "LONG":
-                # Trailing Stop Dinámico (Asegura ganancias si sube más del 0.6%)
-                if (pos.highest_price - pos.entry_price) > (pos.entry_price * 0.006):
-                    new_trailing_sl = pos.highest_price * 0.996
-                    if new_trailing_sl > pos.stop_loss:
-                        pos.stop_loss = new_trailing_sl
+                peak_gain_pct = (pos.highest_price - pos.entry_price) / pos.entry_price
+
+                # Escalón 1: Break-Even Seguro (+0.4% de subida -> SL a entrada + comisiones)
+                if peak_gain_pct >= 0.004 and pos.profit_lock_stage < 1:
+                    pos.stop_loss = max(pos.stop_loss, pos.entry_price * 1.001)
+                    pos.profit_lock_stage = 1
+                    logger.info(f"🛡️ [BREAK-EVEN ACTIVO] {symbol}: SL movido a ${pos.stop_loss:,.2f} (Riesgo Cero)")
+
+                # Escalón 2: Bloqueo de Ganancia Nivel 1 (+0.8% de subida -> SL asegura +0.4% ganancia neta)
+                if peak_gain_pct >= 0.008 and pos.profit_lock_stage < 2:
+                    pos.stop_loss = max(pos.stop_loss, pos.entry_price * 1.004)
+                    pos.profit_lock_stage = 2
+                    logger.info(f"💰 [PROFIT LOCK 1 ACTIVO] {symbol}: SL asegura ganancia en ${pos.stop_loss:,.2f} (+0.4%)")
+
+                # Escalón 3: Chandelier Trailing Lock (> +1.4% de subida -> SL persigue a 0.5% del máximo)
+                if peak_gain_pct >= 0.014:
+                    trailing_sl = pos.highest_price * 0.995
+                    if trailing_sl > pos.stop_loss:
+                        pos.stop_loss = trailing_sl
+                        pos.profit_lock_stage = 3
 
                 if curr_p >= pos.take_profit_2 and pos.take_profit_2 > pos.entry_price:
                     hit_tp = True
@@ -112,14 +129,29 @@ class PaperExecutor:
                     reason = "TAKE_PROFIT_1 (SCALP)"
                 elif curr_p <= pos.stop_loss:
                     hit_sl = True
-                    reason = "TRAILING_STOP" if pos.stop_loss > pos.entry_price else "STOP_LOSS"
+                    reason = "PROFIT_LOCK_EXIT" if pos.stop_loss > pos.entry_price else "STOP_LOSS"
 
             elif pos.side == "SHORT":
-                # Trailing Stop Dinámico para Short (Asegura ganancias si baja más del 0.6%)
-                if (pos.entry_price - pos.lowest_price) > (pos.entry_price * 0.006):
-                    new_trailing_sl = pos.lowest_price * 1.004
-                    if new_trailing_sl < pos.stop_loss:
-                        pos.stop_loss = new_trailing_sl
+                peak_gain_pct = (pos.entry_price - pos.lowest_price) / pos.entry_price
+
+                # Escalón 1: Break-Even Seguro (+0.4% de bajada)
+                if peak_gain_pct >= 0.004 and pos.profit_lock_stage < 1:
+                    pos.stop_loss = min(pos.stop_loss, pos.entry_price * 0.999)
+                    pos.profit_lock_stage = 1
+                    logger.info(f"🛡️ [BREAK-EVEN ACTIVO] {symbol}: SL movido a ${pos.stop_loss:,.2f} (Riesgo Cero)")
+
+                # Escalón 2: Bloqueo de Ganancia Nivel 1 (+0.8% de bajada -> SL asegura +0.4%)
+                if peak_gain_pct >= 0.008 and pos.profit_lock_stage < 2:
+                    pos.stop_loss = min(pos.stop_loss, pos.entry_price * 0.996)
+                    pos.profit_lock_stage = 2
+                    logger.info(f"💰 [PROFIT LOCK 1 ACTIVO] {symbol}: SL asegura ganancia en ${pos.stop_loss:,.2f} (+0.4%)")
+
+                # Escalón 3: Chandelier Trailing Lock (> +1.4% de bajada)
+                if peak_gain_pct >= 0.014:
+                    trailing_sl = pos.lowest_price * 1.005
+                    if trailing_sl < pos.stop_loss:
+                        pos.stop_loss = trailing_sl
+                        pos.profit_lock_stage = 3
 
                 if curr_p <= pos.take_profit_2 and pos.take_profit_2 < pos.entry_price:
                     hit_tp = True
@@ -129,15 +161,14 @@ class PaperExecutor:
                     reason = "TAKE_PROFIT_1 (SCALP)"
                 elif curr_p >= pos.stop_loss:
                     hit_sl = True
-                    reason = "TRAILING_STOP" if pos.stop_loss < pos.entry_price else "STOP_LOSS"
+                    reason = "PROFIT_LOCK_EXIT" if pos.stop_loss < pos.entry_price else "STOP_LOSS"
 
             if hit_tp or hit_sl:
                 pnl = ((curr_p - pos.entry_price) * pos.units) if pos.side == "LONG" else ((pos.entry_price - curr_p) * pos.units)
                 exit_fee = (curr_p * pos.units) * self.taker_fee_pct
                 net_pnl = pnl - exit_fee
 
-                # Corrección de etiqueta si el PnL neto es negativo
-                if net_pnl < 0 and "TAKE_PROFIT" in reason:
+                if net_pnl < 0 and ("TAKE_PROFIT" in reason or "PROFIT_LOCK" in reason):
                     reason = "STOP_LOSS"
 
                 self.balance_usd += net_pnl
