@@ -98,16 +98,16 @@ class PaperExecutor:
             reason = "NONE"
 
             if pos.side == "LONG":
-                # Trailing Stop Dinámico (Asegura ganancias si sube más del 1%)
-                if (pos.highest_price - pos.entry_price) > (pos.entry_price * 0.008):
-                    new_trailing_sl = pos.highest_price * 0.995  # Stop Loss sube detrás del precio
+                # Trailing Stop Dinámico (Asegura ganancias si sube más del 0.6%)
+                if (pos.highest_price - pos.entry_price) > (pos.entry_price * 0.006):
+                    new_trailing_sl = pos.highest_price * 0.996
                     if new_trailing_sl > pos.stop_loss:
                         pos.stop_loss = new_trailing_sl
 
-                if curr_p >= pos.take_profit_2:
+                if curr_p >= pos.take_profit_2 and pos.take_profit_2 > pos.entry_price:
                     hit_tp = True
                     reason = "TAKE_PROFIT_2 (MAX GAIN)"
-                elif curr_p >= pos.take_profit:
+                elif curr_p >= pos.take_profit and pos.take_profit > pos.entry_price:
                     hit_tp = True
                     reason = "TAKE_PROFIT_1 (SCALP)"
                 elif curr_p <= pos.stop_loss:
@@ -115,16 +115,16 @@ class PaperExecutor:
                     reason = "TRAILING_STOP" if pos.stop_loss > pos.entry_price else "STOP_LOSS"
 
             elif pos.side == "SHORT":
-                # Trailing Stop Dinámico para Short
-                if (pos.entry_price - pos.lowest_price) > (pos.entry_price * 0.008):
-                    new_trailing_sl = pos.lowest_price * 1.005
+                # Trailing Stop Dinámico para Short (Asegura ganancias si baja más del 0.6%)
+                if (pos.entry_price - pos.lowest_price) > (pos.entry_price * 0.006):
+                    new_trailing_sl = pos.lowest_price * 1.004
                     if new_trailing_sl < pos.stop_loss:
                         pos.stop_loss = new_trailing_sl
 
-                if curr_p <= pos.take_profit_2:
+                if curr_p <= pos.take_profit_2 and pos.take_profit_2 < pos.entry_price:
                     hit_tp = True
                     reason = "TAKE_PROFIT_2 (MAX GAIN)"
-                elif curr_p <= pos.take_profit:
+                elif curr_p <= pos.take_profit and pos.take_profit < pos.entry_price:
                     hit_tp = True
                     reason = "TAKE_PROFIT_1 (SCALP)"
                 elif curr_p >= pos.stop_loss:
@@ -135,6 +135,10 @@ class PaperExecutor:
                 pnl = ((curr_p - pos.entry_price) * pos.units) if pos.side == "LONG" else ((pos.entry_price - curr_p) * pos.units)
                 exit_fee = (curr_p * pos.units) * self.taker_fee_pct
                 net_pnl = pnl - exit_fee
+
+                # Corrección de etiqueta si el PnL neto es negativo
+                if net_pnl < 0 and "TAKE_PROFIT" in reason:
+                    reason = "STOP_LOSS"
 
                 self.balance_usd += net_pnl
                 closed_trade = {
