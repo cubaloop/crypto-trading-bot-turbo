@@ -26,6 +26,7 @@ logger = logging.getLogger("KuQuantTurboMain")
 from data.keep_alive import KeepAliveMesh
 
 from ai.meta_learner import TurboMetaCognitiveLearner
+from ai.episodic_memory import EpisodicMemoryEngine, MarketVector
 
 class TurboTradingEngine:
     def __init__(self):
@@ -34,6 +35,7 @@ class TurboTradingEngine:
         self.sentiment_analyzer = SentimentAnalyzer(half_life_minutes=config.sentiment_half_life_minutes)
         self.strategy = TurboStrategy()
         self.meta_learner = TurboMetaCognitiveLearner()
+        self.memory_engine = EpisodicMemoryEngine()
         self.risk_manager = RiskManager(
             initial_balance=config.initial_virtual_balance,
             risk_per_trade_pct=config.risk_per_trade_pct,
@@ -50,14 +52,15 @@ class TurboTradingEngine:
         self.news_history = []
         self.iteration = 0
         self.is_running = False
+        self._last_known_trade_count = 0
 
     async def initialize(self):
         logger.info("=================================================================")
-        logger.info("⚡ INICIANDO BOT AUTÓNOMO KUQUANT TURBO SCALPER • IA META-COGNITIVA 24/7")
+        logger.info("⚡ INICIANDO BOT AUTÓNOMO KUQUANT TURBO SCALPER • IA META-COGNITIVA & MEMORIA EPISÓDICA 24/7")
         logger.info(f"Modo: [{config.mode.upper()}] (Capital Virtual: ${config.initial_virtual_balance:,.2f})")
         logger.info(f"Pares Monitoreados: {', '.join(config.symbols)}")
         logger.info(f"Riesgo Turbo: {config.risk_per_trade_pct:.1%} por trade | {config.max_daily_drawdown_pct:.1%} Max DD")
-        logger.info("Estrategia: Meta-Learning + Multi-Timeframe EMA + Volatility Squeeze")
+        logger.info("Estrategia: Banco de Memoria + Meta-Learning + Multi-Timeframe EMA + Volatility Squeeze")
         logger.info("=================================================================")
 
         await self.market_stream.initialize()
@@ -111,17 +114,61 @@ class TurboTradingEngine:
                     trade_allowed, reason = self.risk_manager.check_auto_reactivation(
                         signal_conviction=signal.conviction
                     )
+
+                    # CONSULTA AL BANCO DE MEMORIA
                     if trade_allowed and signal.action in ["BUY", "SELL"] and symbol not in self.executor.positions:
-                        units = self.risk_manager.compute_position_size(
-                            entry_price=signal.entry_price,
-                            stop_loss_price=signal.stop_loss
+                        m_vec = MarketVector(
+                            symbol=symbol,
+                            action=signal.action,
+                            trend_direction=1.0 if signal.action == "BUY" else -1.0,
+                            volatility_atr_pct=signal.atr / max(1.0, signal.entry_price),
+                            order_book_imbalance=snapshot.order_book_imbalance if snapshot else 0.0,
+                            volume_delta=snapshot.volume_delta if snapshot else 0.0,
+                            entropy=0.30,
+                            sentiment_score=decayed_score,
+                            conviction=signal.conviction
                         )
-                        if units > 0:
-                            logger.info(f"⚡ [SEÑAL TURBO] en {symbol}: {signal.action} | {signal.reason}")
-                            self.executor.execute_signal(signal, units)
+                        mem_mult, win_rate, mem_insight = self.memory_engine.query_past_experience(m_vec)
+                        if mem_mult < 0.50:
+                            logger.warning(f"🛑 [MEMORIA TURBO VETÓ ORDEN] en {symbol}: {mem_insight}")
+                            trade_allowed = False
+
+                        if trade_allowed:
+                            units = self.risk_manager.compute_position_size(
+                                entry_price=signal.entry_price,
+                                stop_loss_price=signal.stop_loss
+                            )
+                            if units > 0:
+                                logger.info(f"⚡ [SEÑAL TURBO MEMORIA-APROBADA] en {symbol}: {signal.action} | {signal.reason}")
+                                self.executor.execute_signal(signal, units)
 
                 # 4. Trailing Stops y Cierre de Órdenes (TP1, TP2, Trailing SL)
                 self.executor.update_and_check_exits(current_prices)
+
+                # Consolidar experiencia en memoria episódica
+                if len(self.executor.trade_history) > self._last_known_trade_count:
+                    new_trades = self.executor.trade_history[self._last_known_trade_count:]
+                    for t in new_trades:
+                        t_vec = MarketVector(
+                            symbol=t.get('symbol', 'BTC/USDT'),
+                            action="BUY" if t.get('side') == "LONG" else "SELL",
+                            trend_direction=1.0 if t.get('side') == "LONG" else -1.0,
+                            volatility_atr_pct=0.01,
+                            order_book_imbalance=0.0,
+                            volume_delta=0.0,
+                            entropy=0.30,
+                            sentiment_score=0.0,
+                            conviction=0.5
+                        )
+                        self.memory_engine.record_completed_trade(
+                            pos_id=t.get('id', 'trade'),
+                            vector=t_vec,
+                            entry_price=t.get('entry_price', 0.0),
+                            exit_price=t.get('exit_price', 0.0),
+                            net_pnl=t.get('net_pnl', 0.0),
+                            opened_at=t.get('closed_at', time.time()) - 300.0
+                        )
+                    self._last_known_trade_count = len(self.executor.trade_history)
 
                 # 5. Actualizar Balance y Equity
                 current_equity = self.executor.get_equity(current_prices)
