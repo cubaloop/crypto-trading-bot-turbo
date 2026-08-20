@@ -134,28 +134,35 @@ class PaperExecutor:
             hit_sl = False
             reason = "NONE"
 
-            # === SISTEMA DINÁMICO DE BLOQUEO DE BENEFICIOS (TIERED PROFIT LOCK) ===
+            # === TURBO HYPER-CHANDELIER PROFIT LOCK MILIMÉTRICO ===
             if pos.side == "LONG":
                 peak_gain_pct = (pos.highest_price - pos.entry_price) / pos.entry_price
 
-                # Escalón 1: Break-Even Seguro (+0.4% de subida -> SL a entrada + comisiones)
-                if peak_gain_pct >= 0.004 and pos.profit_lock_stage < 1:
+                # Escalón 1: Break-Even Seguro (+0.35% de subida -> SL a entrada + comisiones)
+                if peak_gain_pct >= 0.0035 and pos.profit_lock_stage < 1:
                     pos.stop_loss = max(pos.stop_loss, pos.entry_price * 1.001)
                     pos.profit_lock_stage = 1
-                    logger.info(f"🛡️ [BREAK-EVEN ACTIVO] {symbol}: SL movido a ${pos.stop_loss:,.2f} (Riesgo Cero)")
+                    logger.info(f"🛡️ [TURBO BREAK-EVEN ACTIVO] {symbol}: SL movido a ${pos.stop_loss:,.2f} (Riesgo Cero)")
 
-                # Escalón 2: Bloqueo de Ganancia Nivel 1 (+0.8% de subida -> SL asegura +0.4% ganancia neta)
-                if peak_gain_pct >= 0.008 and pos.profit_lock_stage < 2:
-                    pos.stop_loss = max(pos.stop_loss, pos.entry_price * 1.004)
+                # Escalón 2: Bloqueo de Ganancia Nivel 1 (+0.70% de subida -> SL asegura +0.40% ganancia neta)
+                if peak_gain_pct >= 0.0070 and pos.profit_lock_stage < 2:
+                    pos.stop_loss = max(pos.stop_loss, pos.entry_price * 1.0040)
                     pos.profit_lock_stage = 2
-                    logger.info(f"💰 [PROFIT LOCK 1 ACTIVO] {symbol}: SL asegura ganancia en ${pos.stop_loss:,.2f} (+0.4%)")
+                    logger.info(f"💰 [TURBO PROFIT LOCK 1 ACTIVO] {symbol}: SL asegura ganancia en ${pos.stop_loss:,.2f} (+0.40%)")
 
-                # Escalón 3: Chandelier Trailing Lock (> +1.4% de subida -> SL persigue a 0.5% del máximo)
-                if peak_gain_pct >= 0.014:
-                    trailing_sl = pos.highest_price * 0.995
-                    if trailing_sl > pos.stop_loss:
-                        pos.stop_loss = trailing_sl
-                        pos.profit_lock_stage = 3
+                # Escalón 3: Hyper-Chandelier Trailing Ratchet (> +1.2% de subida)
+                if peak_gain_pct >= 0.035:
+                    trailing_sl = pos.highest_price * 0.998  # Solo 0.20% de retroceso
+                elif peak_gain_pct >= 0.018:
+                    trailing_sl = pos.highest_price * 0.997  # Solo 0.30% de retroceso
+                elif peak_gain_pct >= 0.010:
+                    trailing_sl = pos.highest_price * 0.996  # Solo 0.40% de retroceso
+                else:
+                    trailing_sl = pos.stop_loss
+
+                if trailing_sl > pos.stop_loss:
+                    pos.stop_loss = trailing_sl
+                    pos.profit_lock_stage = 3
 
                 if curr_p >= pos.take_profit_2 and pos.take_profit_2 > pos.entry_price:
                     hit_tp = True
@@ -170,24 +177,31 @@ class PaperExecutor:
             elif pos.side == "SHORT":
                 peak_gain_pct = (pos.entry_price - pos.lowest_price) / pos.entry_price
 
-                # Escalón 1: Break-Even Seguro (+0.4% de bajada)
-                if peak_gain_pct >= 0.004 and pos.profit_lock_stage < 1:
+                # Escalón 1: Break-Even Seguro (+0.35% de bajada)
+                if peak_gain_pct >= 0.0035 and pos.profit_lock_stage < 1:
                     pos.stop_loss = min(pos.stop_loss, pos.entry_price * 0.999)
                     pos.profit_lock_stage = 1
-                    logger.info(f"🛡️ [BREAK-EVEN ACTIVO] {symbol}: SL movido a ${pos.stop_loss:,.2f} (Riesgo Cero)")
+                    logger.info(f"🛡️ [TURBO BREAK-EVEN ACTIVO] {symbol}: SL movido a ${pos.stop_loss:,.2f} (Riesgo Cero)")
 
-                # Escalón 2: Bloqueo de Ganancia Nivel 1 (+0.8% de bajada -> SL asegura +0.4%)
-                if peak_gain_pct >= 0.008 and pos.profit_lock_stage < 2:
-                    pos.stop_loss = min(pos.stop_loss, pos.entry_price * 0.996)
+                # Escalón 2: Bloqueo de Ganancia Nivel 1 (+0.70% de bajada -> SL asegura +0.40%)
+                if peak_gain_pct >= 0.0070 and pos.profit_lock_stage < 2:
+                    pos.stop_loss = min(pos.stop_loss, pos.entry_price * 0.9960)
                     pos.profit_lock_stage = 2
-                    logger.info(f"💰 [PROFIT LOCK 1 ACTIVO] {symbol}: SL asegura ganancia en ${pos.stop_loss:,.2f} (+0.4%)")
+                    logger.info(f"💰 [TURBO PROFIT LOCK 1 ACTIVO] {symbol}: SL asegura ganancia en ${pos.stop_loss:,.2f} (+0.40%)")
 
-                # Escalón 3: Chandelier Trailing Lock (> +1.4% de bajada)
-                if peak_gain_pct >= 0.014:
-                    trailing_sl = pos.lowest_price * 1.005
-                    if trailing_sl < pos.stop_loss:
-                        pos.stop_loss = trailing_sl
-                        pos.profit_lock_stage = 3
+                # Escalón 3: Hyper-Chandelier Trailing Ratchet (> +1.2% de bajada)
+                if peak_gain_pct >= 0.035:
+                    trailing_sl = pos.lowest_price * 1.002
+                elif peak_gain_pct >= 0.018:
+                    trailing_sl = pos.lowest_price * 1.003
+                elif peak_gain_pct >= 0.010:
+                    trailing_sl = pos.lowest_price * 1.004
+                else:
+                    trailing_sl = pos.stop_loss
+
+                if trailing_sl < pos.stop_loss:
+                    pos.stop_loss = trailing_sl
+                    pos.profit_lock_stage = 3
 
                 if curr_p <= pos.take_profit_2 and pos.take_profit_2 < pos.entry_price:
                     hit_tp = True
