@@ -37,7 +37,11 @@ class TurboTradingEngine:
             max_daily_drawdown_pct=config.max_daily_drawdown_pct
         )
         self.executor = PaperExecutor(initial_balance_usd=config.initial_virtual_balance)
-        self.web_server = DashboardServer(host=config.host, port=config.port)
+        self.web_server = DashboardServer(
+            host=config.host,
+            port=config.port,
+            on_reset_circuit_breaker=self.risk_manager.reset_circuit_breaker
+        )
         self.keep_alive = KeepAliveMesh(interval_seconds=420)
         
         self.news_history = []

@@ -505,6 +505,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 </div>
                 <div class="metric-value mono up" id="val-circuit-status" style="font-size: 18px;">SEGURO / ACTIVO</div>
                 <div class="metric-sub" id="val-circuit-sub">Max DD: 5.0% diario</div>
+                <button onclick="resetCircuitBreaker()" id="btn-reset-cb" style="margin-top: 6px; background: rgba(245, 166, 35, 0.15); border: 1px solid var(--accent); color: var(--accent); font-size: 10px; font-weight: 800; padding: 5px 8px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                    ⚡ REACTIVAR MOTOR
+                </button>
             </div>
         </section>
 
@@ -684,6 +687,23 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
         connectWebSocket();
 
+        async function resetCircuitBreaker() {
+            try {
+                const btn = document.getElementById('btn-reset-cb');
+                if (btn) btn.innerText = 'Reactivando...';
+                const res = await fetch('/api/reset_circuit_breaker', { method: 'POST' });
+                if (res.ok) {
+                    fetchStatusNow();
+                    if (btn) {
+                        btn.innerText = '✅ REACTIVADO';
+                        setTimeout(() => { btn.innerText = '⚡ REACTIVAR MOTOR'; }, 2000);
+                    }
+                }
+            } catch (e) {
+                console.error("Error resetting circuit breaker", e);
+            }
+        }
+
         function updateDashboard(data) {
             if (!data || Object.keys(data).length === 0) return;
 
@@ -836,12 +856,12 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     </script>
 </body>
 </html>
-"""
 
 class DashboardServer:
-    def __init__(self, host: str = "0.0.0.0", port: int = 8000):
+    def __init__(self, host: str = "0.0.0.0", port: int = 8001, on_reset_circuit_breaker = None):
         self.host = host
         self.port = port
+        self.on_reset_circuit_breaker = on_reset_circuit_breaker
         self.app = web.Application()
         self.sockets: Set[web.WebSocketResponse] = set()
         self.latest_state: Dict = {}
@@ -851,12 +871,18 @@ class DashboardServer:
         self.app.router.add_get("/", self.handle_index)
         self.app.router.add_get("/ws", self.handle_websocket)
         self.app.router.add_get("/api/status", self.handle_status)
+        self.app.router.add_post("/api/reset_circuit_breaker", self.handle_reset_cb)
 
     async def handle_index(self, request):
         return web.Response(text=DASHBOARD_HTML, content_type="text/html")
 
     async def handle_status(self, request):
         return web.json_response(self.latest_state)
+
+    async def handle_reset_cb(self, request):
+        if self.on_reset_circuit_breaker:
+            self.on_reset_circuit_breaker()
+        return web.json_response({"status": "success", "message": "Circuit breaker TURBO reiniciado"})
 
     async def handle_websocket(self, request):
         ws = web.WebSocketResponse()

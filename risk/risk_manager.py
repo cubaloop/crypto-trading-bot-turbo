@@ -42,9 +42,15 @@ class RiskManager:
                     logger.critical(f"🚨 CIRCUIT BREAKER TURBO DISPARADO: Drawdown diario {current_drawdown:.2%} superó el límite {self.max_daily_drawdown_pct:.2%}.")
                     self.is_circuit_breaker_active = True
 
+    def reset_circuit_breaker(self):
+        self.daily_high_equity = self.current_equity
+        self.last_day_reset = time.time()
+        self.is_circuit_breaker_active = False
+        logger.info(f"⚡ CIRCUIT BREAKER TURBO REINICIADO MANUALMENTE | Base de Equity: ${self.current_equity:,.2f}")
+
     def check_trade_allowed(self) -> Tuple[bool, str]:
         if self.is_circuit_breaker_active:
-            return False, "Circuit Breaker Diario Activo (Protección de Capital 5% Max DD)"
+            return False, "Circuit Breaker Diario Turbo Activo (5% Max Drawdown)"
         return True, "OK"
 
     def compute_position_size(
