@@ -123,8 +123,8 @@ class TurboTradingEngine:
                             action=signal.action,
                             trend_direction=1.0 if signal.action == "BUY" else -1.0,
                             volatility_atr_pct=signal.atr / max(1.0, signal.entry_price),
-                            order_book_imbalance=snapshot.order_book_imbalance if snapshot else 0.0,
-                            volume_delta=snapshot.volume_delta if snapshot else 0.0,
+                            order_book_imbalance=getattr(snapshot, 'order_book_imbalance', 0.0) if snapshot else 0.0,
+                            volume_delta=getattr(snapshot, 'volume_delta', 0.0) if snapshot else 0.0,
                             entropy=0.30,
                             sentiment_score=decayed_score,
                             conviction=signal.conviction

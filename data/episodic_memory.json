@@ -1,0 +1,68 @@
+[
+  {
+    "id": "turbo_hist_1",
+    "timestamp": 1787249052.712401,
+    "market_vector": {
+      "symbol": "BTC/USDT",
+      "action": "BUY",
+      "trend_direction": 1.0,
+      "volatility_atr_pct": 0.01,
+      "order_book_imbalance": 0.0,
+      "volume_delta": 0.0,
+      "entropy": 0.3,
+      "sentiment_score": 0.0,
+      "conviction": 0.5
+    },
+    "entry_price": 65339.12,
+    "exit_price": 65861.2,
+    "net_pnl": 151.42,
+    "pnl_pct": 0.7990312694753074,
+    "outcome": "WIN",
+    "holding_time_seconds": 90452.71240091324,
+    "reflection": "\u2705 \u00c9xito en BUY BTC/USDT. Sincron\u00eda flujo (+0.00) y convicci\u00f3n (+0.50)."
+  },
+  {
+    "id": "turbo_hist_2",
+    "timestamp": 1787249052.7194188,
+    "market_vector": {
+      "symbol": "ETH/USDT",
+      "action": "BUY",
+      "trend_direction": 1.0,
+      "volatility_atr_pct": 0.01,
+      "order_book_imbalance": 0.0,
+      "volume_delta": 0.0,
+      "entropy": 0.3,
+      "sentiment_score": 0.0,
+      "conviction": 0.5
+    },
+    "entry_price": 1937.47,
+    "exit_price": 1952.82,
+    "net_pnl": 150.34,
+    "pnl_pct": 0.7922703319277155,
+    "outcome": "WIN",
+    "holding_time_seconds": 89752.71941876411,
+    "reflection": "\u2705 \u00c9xito en BUY ETH/USDT. Sincron\u00eda flujo (+0.00) y convicci\u00f3n (+0.50)."
+  },
+  {
+    "id": "turbo_hist_3",
+    "timestamp": 1787249052.7211907,
+    "market_vector": {
+      "symbol": "SOL/USDT",
+      "action": "BUY",
+      "trend_direction": 1.0,
+      "volatility_atr_pct": 0.01,
+      "order_book_imbalance": 0.0,
+      "volume_delta": 0.0,
+      "entropy": 0.3,
+      "sentiment_score": 0.0,
+      "conviction": 0.5
+    },
+    "entry_price": 78.6,
+    "exit_price": 79.22,
+    "net_pnl": 140.13,
+    "pnl_pct": 0.7888040712468252,
+    "outcome": "WIN",
+    "holding_time_seconds": 89052.721190691,
+    "reflection": "\u2705 \u00c9xito en BUY SOL/USDT. Sincron\u00eda flujo (+0.00) y convicci\u00f3n (+0.50)."
+  }
+]
