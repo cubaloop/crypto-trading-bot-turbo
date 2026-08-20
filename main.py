@@ -97,8 +97,9 @@ class TurboTradingEngine:
                         has_black_swan=has_black_swan
                     )
 
-                    # 3. Validación y Ejecución de Posición
-                    trade_allowed, reason = self.risk_manager.check_trade_allowed()
+                    trade_allowed, reason = self.risk_manager.check_auto_reactivation(
+                        signal_conviction=signal.conviction
+                    )
                     if trade_allowed and signal.action in ["BUY", "SELL"] and symbol not in self.executor.positions:
                         units = self.risk_manager.compute_position_size(
                             entry_price=signal.entry_price,

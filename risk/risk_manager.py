@@ -20,6 +20,8 @@ class RiskManager:
 
         self.daily_high_equity = initial_balance
         self.last_day_reset = time.time()
+        self.circuit_breaker_triggered_at = 0.0
+        self.min_cooldown_seconds = 450.0  # 7.5 minutos de enfriamiento mínimo para Turbo Scalper
         self.is_circuit_breaker_active = False
 
     def update_equity(self, equity: float):
@@ -41,12 +43,34 @@ class RiskManager:
                 if not self.is_circuit_breaker_active:
                     logger.critical(f"🚨 CIRCUIT BREAKER TURBO DISPARADO: Drawdown diario {current_drawdown:.2%} superó el límite {self.max_daily_drawdown_pct:.2%}.")
                     self.is_circuit_breaker_active = True
+                    self.circuit_breaker_triggered_at = now
 
     def reset_circuit_breaker(self):
         self.daily_high_equity = self.current_equity
         self.last_day_reset = time.time()
         self.is_circuit_breaker_active = False
-        logger.info(f"⚡ CIRCUIT BREAKER TURBO REINICIADO MANUALMENTE | Base de Equity: ${self.current_equity:,.2f}")
+        self.circuit_breaker_triggered_at = 0.0
+        logger.info(f"⚡ CIRCUIT BREAKER TURBO REINICIADO | Base de Equity: ${self.current_equity:,.2f}")
+
+    def check_auto_reactivation(self, signal_conviction: float = 0.0) -> Tuple[bool, str]:
+        if not self.is_circuit_breaker_active:
+            return True, "OK"
+
+        now = time.time()
+        elapsed = now - self.circuit_breaker_triggered_at
+
+        # Cooldown de relajación
+        if elapsed < self.min_cooldown_seconds:
+            remaining_mins = max(1, int((self.min_cooldown_seconds - elapsed) / 60))
+            return False, f"VIGILANCIA ADAPTATIVA (Enfriamiento: {remaining_mins}m restantes)"
+
+        # Criterio Autónomo de Despertar Turbo: Alta convicción de ruptura (|conv| >= 0.60)
+        if abs(signal_conviction) >= 0.60:
+            self.reset_circuit_breaker()
+            logger.info(f"⚡ [DESPERTAR AUTÓNOMO TURBO] Ruptura Squeeze de alta convicción detectada ({signal_conviction:+.2f}). Reanudando scalping.")
+            return True, "AUTO_REACTIVADO_POR_MERCADO"
+
+        return False, "VIGILANCIA INTELIGENTE (Escaneando ruptura Squeeze óptima)"
 
     def check_trade_allowed(self) -> Tuple[bool, str]:
         if self.is_circuit_breaker_active:
