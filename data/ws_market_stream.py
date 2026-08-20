@@ -45,13 +45,22 @@ class MarketStream:
 
     def _init_exchange(self, exchange_id: str):
         try:
+            from config.settings import config
             exchange_class = getattr(ccxt_async, exchange_id)
-            self.exchange = exchange_class({
+            params = {
                 'enableRateLimit': True,
                 'timeout': 6000,
-            })
+            }
+            if config.api_key:
+                params['apiKey'] = config.api_key
+            if config.api_secret:
+                params['secret'] = config.api_secret
+            if config.api_passphrase:
+                params['password'] = config.api_passphrase
+
+            self.exchange = exchange_class(params)
             self.active_exchange_id = exchange_id
-            logger.info(f"Conector Turbo inicializado con: {exchange_id}")
+            logger.info(f"⚡ Conector TURBO autenticado con: {exchange_id}")
         except Exception as e:
             logger.error(f"Error inicializando exchange {exchange_id}: {e}")
 

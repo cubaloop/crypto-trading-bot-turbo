@@ -7,11 +7,12 @@ class Settings(BaseSettings):
     environment: str = os.getenv("ENVIRONMENT", "production")
     mode: str = os.getenv("TRADING_MODE", "paper")
     
-    # Exchange configuration (Bybit primary, zero geoblocking)
-    exchange_id: str = os.getenv("EXCHANGE_ID", "bybit")
+    # Exchange configuration
+    exchange_id: str = os.getenv("EXCHANGE_ID", "kucoin")
     api_key: str = os.getenv("API_KEY", "")
     api_secret: str = os.getenv("API_SECRET", "")
-    use_testnet: bool = os.getenv("USE_TESTNET", "true").lower() == "true"
+    api_passphrase: str = os.getenv("API_PASSPHRASE", "")
+    use_testnet: bool = os.getenv("USE_TESTNET", "false").lower() == "true"
     
     # Web server
     host: str = os.getenv("HOST", "0.0.0.0")
