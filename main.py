@@ -25,12 +25,15 @@ logger = logging.getLogger("KuQuantTurboMain")
 
 from data.keep_alive import KeepAliveMesh
 
+from ai.meta_learner import TurboMetaCognitiveLearner
+
 class TurboTradingEngine:
     def __init__(self):
         self.market_stream = MarketStream(exchange_id=config.exchange_id)
         self.news_streamer = NewsStreamer(api_key=config.cryptopanic_api_key)
         self.sentiment_analyzer = SentimentAnalyzer(half_life_minutes=config.sentiment_half_life_minutes)
         self.strategy = TurboStrategy()
+        self.meta_learner = TurboMetaCognitiveLearner()
         self.risk_manager = RiskManager(
             initial_balance=config.initial_virtual_balance,
             risk_per_trade_pct=config.risk_per_trade_pct,
@@ -50,11 +53,11 @@ class TurboTradingEngine:
 
     async def initialize(self):
         logger.info("=================================================================")
-        logger.info("⚡ INICIANDO BOT AUTÓNOMO KUQUANT TURBO (ALPHA-X) • SCALPING 24/7")
+        logger.info("⚡ INICIANDO BOT AUTÓNOMO KUQUANT TURBO SCALPER • IA META-COGNITIVA 24/7")
         logger.info(f"Modo: [{config.mode.upper()}] (Capital Virtual: ${config.initial_virtual_balance:,.2f})")
         logger.info(f"Pares Monitoreados: {', '.join(config.symbols)}")
         logger.info(f"Riesgo Turbo: {config.risk_per_trade_pct:.1%} por trade | {config.max_daily_drawdown_pct:.1%} Max DD")
-        logger.info("Estrategia: Volatility Squeeze Breakout + Order Book Depth Acceleration")
+        logger.info("Estrategia: Meta-Learning + Multi-Timeframe EMA + Volatility Squeeze")
         logger.info("=================================================================")
 
         await self.market_stream.initialize()
@@ -83,6 +86,14 @@ class TurboTradingEngine:
                 # 2. Ingesta de Mercado & Señales Turbo para cada par
                 current_prices = dict(self.market_stream.last_prices)
                 
+                # Auto-Reflexión Meta-Cognitiva
+                dynamic_weights, dynamic_threshold, reflection_msg = self.meta_learner.evaluate_performance_and_adapt(
+                    trade_history=self.executor.trade_history,
+                    current_market_trend_bullish=True
+                )
+                if self.iteration % 20 == 1:
+                    logger.info(reflection_msg)
+
                 for symbol in config.symbols:
                     snapshot = await self.market_stream.fetch_snapshot(symbol)
                     if snapshot:
