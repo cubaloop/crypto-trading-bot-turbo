@@ -856,6 +856,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     </script>
 </body>
 </html>
+"""
 
 class DashboardServer:
     def __init__(self, host: str = "0.0.0.0", port: int = 8001, on_reset_circuit_breaker = None):
