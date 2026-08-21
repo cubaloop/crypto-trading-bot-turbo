@@ -1,3 +1,4 @@
+from data.sentinel_client import SentinelClient
 import asyncio
 import logging
 import os
@@ -56,6 +57,7 @@ class TurboTradingEngine:
         
         self.news_history = []
         self.iteration = 0
+        self.sentinel_client = SentinelClient()
         self.is_running = False
         self._last_known_trade_count = 0
 
@@ -85,6 +87,22 @@ class TurboTradingEngine:
             while self.is_running:
                 self.iteration += 1
                 cycle_start = time.time()
+
+                current_prices = dict(self.market_stream.last_prices)
+                
+                # 0. Consulta en Tiempo Real al SPIDERWEB SENTINEL (Tela de Araña)
+                active_vibrations = await self.sentinel_client.fetch_active_vibrations()
+                
+                # Evaluación de Cierre de Emergencia por Onda de Choque para posiciones abiertas
+                for sym, pos in list(self.executor.positions.items()):
+                    sentinel_dec = self.sentinel_client.evaluate_shockwave_decision(
+                        symbol=sym,
+                        current_position_side=pos.side,
+                        new_signal_action=None
+                    )
+                    if sentinel_dec["emergency_close"]:
+                        logger.warning(f"🚨 {sentinel_dec['reason']}")
+                        await self.executor.close_position(sym, exit_price=current_prices.get(sym, pos.entry_price), reason=sentinel_dec["reason"])
 
                 # 1. Ingesta de Noticias y NLP
                 if self.iteration % 10 == 1:
@@ -120,6 +138,20 @@ class TurboTradingEngine:
                         decayed_sentiment=decayed_score,
                         has_black_swan=has_black_swan
                     )
+
+                                        # Consulta de Veto o Anticipación de Onda de Choque del Sentinel
+                    sentinel_eval = self.sentinel_client.evaluate_shockwave_decision(
+                        symbol=symbol,
+                        current_position_side=None,
+                        new_signal_action=signal.action
+                    )
+                    if sentinel_eval["veto_entry"]:
+                        logger.warning(sentinel_eval["reason"])
+                        trade_allowed = False
+                    elif sentinel_eval["shockwave_entry"] and symbol not in self.executor.positions:
+                        logger.info(sentinel_eval["reason"])
+                        signal.action = sentinel_eval["shockwave_entry"]
+                        trade_allowed = True
 
                     trade_allowed, reason = self.risk_manager.check_auto_reactivation(
                         signal_conviction=signal.conviction
@@ -247,6 +279,7 @@ class TurboTradingEngine:
             await self.shutdown()
 
     async def shutdown(self):
+        self.sentinel_client = SentinelClient()
         self.is_running = False
         await self.market_stream.close()
         await self.web_server.stop()
