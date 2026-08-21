@@ -79,7 +79,7 @@ class BinanceTestnetExecutorTurbo:
                 pass
 
             # 2. Control de Margen Aislado Seguro (Máximo $600 USDT notional por trade)
-            max_safe_notional = min(600.0, self.balance_usd * (self.leverage * 0.15))
+            max_safe_notional = min(2500.0, self.balance_usd * (self.leverage * 0.15))
             if (units * signal.entry_price) > max_safe_notional:
                 units = max_safe_notional / signal.entry_price
 
@@ -161,13 +161,13 @@ class BinanceTestnetExecutorTurbo:
             should_close = False
             reason = ""
             atr_pct = (pos.atr / pos.entry_price) if pos.entry_price > 0 else 0.008
-            micro_tp_gain = max(0.0038, 0.65 * atr_pct)
-            hurdle_be = max(0.0028, 0.50 * atr_pct)
+            micro_tp_gain = max(0.0028, 0.65 * atr_pct)
+            hurdle_be = max(0.0020, 0.50 * atr_pct)
 
             # 1. Salida por Estancamiento / Time-Decay (Rotación dinámica de capital)
             position_age_sec = time.time() - pos.opened_at
             price_variation = abs(curr_p - pos.entry_price) / max(1.0, pos.entry_price)
-            if position_age_sec >= 1200 and price_variation <= 0.0018:
+            if position_age_sec >= 600 and price_variation <= 0.0018:
                 should_close = True
                 reason = "TIME_DECAY_STAGNATION (Rotación de Capital)"
 
