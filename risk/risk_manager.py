@@ -14,7 +14,7 @@ class RiskManager:
     ):
         self.initial_balance = initial_balance
         self.current_equity = initial_balance
-        self.risk_per_trade_pct = risk_per_trade_pct
+        self.risk_per_trade_pct = 0.08
         self.max_daily_drawdown_pct = max_daily_drawdown_pct
         self.max_open_positions = max_open_positions
 
