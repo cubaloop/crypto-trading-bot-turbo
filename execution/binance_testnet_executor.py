@@ -149,18 +149,27 @@ class BinanceTestnetExecutorTurbo:
             should_close = False
             reason = ""
             atr_pct = (pos.atr / pos.entry_price) if pos.entry_price > 0 else 0.008
-            hurdle_be = max(0.0045, 1.1 * atr_pct)
+            micro_tp_gain = max(0.0038, 0.65 * atr_pct)
+            hurdle_be = max(0.0028, 0.50 * atr_pct)
 
+            # 1. Salida por Estancamiento / Time-Decay (Rotación dinámica de capital)
+            position_age_sec = time.time() - pos.opened_at
+            price_variation = abs(curr_p - pos.entry_price) / max(1.0, pos.entry_price)
+            if position_age_sec >= 1200 and price_variation <= 0.0018:
+                should_close = True
+                reason = "TIME_DECAY_STAGNATION (Rotación de Capital)"
+
+            # 2. Hyper-Chandelier Micro-Scalping Trailing Ratchet
             if pos.side == "LONG":
                 peak_gain = (pos.highest_price - pos.entry_price) / pos.entry_price
                 if peak_gain >= hurdle_be and pos.profit_lock_stage < 1:
-                    pos.stop_loss = max(pos.stop_loss, pos.entry_price * 1.0012)
+                    pos.stop_loss = max(pos.stop_loss, pos.entry_price * 1.0010)
                     pos.profit_lock_stage = 1
-                if peak_gain >= (hurdle_be * 1.6) and pos.profit_lock_stage < 2:
-                    pos.stop_loss = max(pos.stop_loss, pos.entry_price * 1.0050)
+                if peak_gain >= (hurdle_be * 1.5) and pos.profit_lock_stage < 2:
+                    pos.stop_loss = max(pos.stop_loss, pos.entry_price * 1.0035)
                     pos.profit_lock_stage = 2
-                if peak_gain >= (hurdle_be * 2.5):
-                    trailing_sl = pos.highest_price * (1.0 - (0.5 * atr_pct))
+                if peak_gain >= (hurdle_be * 2.2):
+                    trailing_sl = pos.highest_price * (1.0 - (0.4 * atr_pct))
                     if trailing_sl > pos.stop_loss:
                         pos.stop_loss = trailing_sl
                         pos.profit_lock_stage = 3
@@ -168,20 +177,23 @@ class BinanceTestnetExecutorTurbo:
                 if curr_p <= pos.stop_loss:
                     should_close = True
                     reason = "PROFIT_LOCK_EXIT" if pos.stop_loss > pos.entry_price else "STOP_LOSS"
-                elif curr_p >= pos.take_profit:
+                elif curr_p >= (pos.entry_price * (1.0 + micro_tp_gain)):
                     should_close = True
-                    reason = "TAKE_PROFIT"
+                    reason = "MICRO_SCALPING_TAKE_PROFIT"
+                elif curr_p >= pos.take_profit and pos.take_profit > pos.entry_price:
+                    should_close = True
+                    reason = f"TAKE_PROFIT ({getattr(pos, 'operation_type', 'SNIPER')})"
 
             elif pos.side == "SHORT":
                 peak_gain = (pos.entry_price - pos.lowest_price) / pos.entry_price
                 if peak_gain >= hurdle_be and pos.profit_lock_stage < 1:
-                    pos.stop_loss = min(pos.stop_loss, pos.entry_price * 0.9988)
+                    pos.stop_loss = min(pos.stop_loss, pos.entry_price * 0.9990)
                     pos.profit_lock_stage = 1
-                if peak_gain >= (hurdle_be * 1.6) and pos.profit_lock_stage < 2:
-                    pos.stop_loss = min(pos.stop_loss, pos.entry_price * 0.9950)
+                if peak_gain >= (hurdle_be * 1.5) and pos.profit_lock_stage < 2:
+                    pos.stop_loss = min(pos.stop_loss, pos.entry_price * 0.9965)
                     pos.profit_lock_stage = 2
-                if peak_gain >= (hurdle_be * 2.5):
-                    trailing_sl = pos.lowest_price * (1.0 + (0.5 * atr_pct))
+                if peak_gain >= (hurdle_be * 2.2):
+                    trailing_sl = pos.lowest_price * (1.0 + (0.4 * atr_pct))
                     if trailing_sl < pos.stop_loss:
                         pos.stop_loss = trailing_sl
                         pos.profit_lock_stage = 3
@@ -189,9 +201,12 @@ class BinanceTestnetExecutorTurbo:
                 if curr_p >= pos.stop_loss:
                     should_close = True
                     reason = "PROFIT_LOCK_EXIT" if pos.stop_loss < pos.entry_price else "STOP_LOSS"
-                elif curr_p <= pos.take_profit:
+                elif curr_p <= (pos.entry_price * (1.0 - micro_tp_gain)):
                     should_close = True
-                    reason = "TAKE_PROFIT"
+                    reason = "MICRO_SCALPING_TAKE_PROFIT"
+                elif curr_p <= pos.take_profit and pos.take_profit < pos.entry_price:
+                    should_close = True
+                    reason = f"TAKE_PROFIT ({getattr(pos, 'operation_type', 'SNIPER')})"
 
             if should_close:
                 await self.close_position(symbol, exit_price=curr_p, reason=reason)
