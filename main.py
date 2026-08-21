@@ -58,8 +58,25 @@ class TurboTradingEngine:
         self.news_history = []
         self.iteration = 0
         self.sentinel_client = SentinelClient()
+        self.web_server.on_sentinel_push = self.on_sentinel_push_received
         self.is_running = False
         self._last_known_trade_count = 0
+
+    async def on_sentinel_push_received(self, alert: dict):
+        """
+        Receptor instantáneo (<5ms) de alertas Webhook del SPIDERWEB SENTINEL.
+        Ejecuta cierre de emergencia inmediato si el choque impacta una posición activa.
+        """
+        sym = alert.get("source_symbol", "")
+        v_type = alert.get("vibration_type", "")
+        z_vol = alert.get("z_score_volume", 0.0)
+        
+        for pos_sym, pos in list(self.executor.positions.items()):
+            if (pos_sym.startswith(sym.split('/')[0]) or sym.startswith("BTC")):
+                if pos.side == "LONG" and v_type in ["SHOCKWAVE_DUMP", "ORDER_BOOK_COLLAPSE"]:
+                    logger.warning(f"🚨 [PUSH WEBHOOK SENTINEL RECIBIDO EN <5MS] Cierre inmediato de {pos_sym} por choque bajista masivo en {sym} (Z-Score: {z_vol:.1f})")
+                    current_p = self.market_stream.last_prices.get(pos_sym, pos.entry_price)
+                    await self.executor.close_position(pos_sym, exit_price=current_p, reason=f"SENTINEL_PUSH_EMERGENCY ({sym} {v_type})")
 
     async def initialize(self):
         logger.info("=================================================================")
@@ -280,6 +297,7 @@ class TurboTradingEngine:
 
     async def shutdown(self):
         self.sentinel_client = SentinelClient()
+        self.web_server.on_sentinel_push = self.on_sentinel_push_received
         self.is_running = False
         await self.market_stream.close()
         await self.web_server.stop()

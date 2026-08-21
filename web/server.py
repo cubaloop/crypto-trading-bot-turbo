@@ -905,6 +905,15 @@ class DashboardServer:
 
         return ws
 
+    async def handle_sentinel_push(self, request):
+        try:
+            alert = await request.json()
+            if hasattr(self, 'on_sentinel_push') and self.on_sentinel_push:
+                await self.on_sentinel_push(alert)
+            return web.json_response({"status": "received", "timestamp": alert.get("timestamp")})
+        except Exception as e:
+            return web.json_response({"status": "error", "message": str(e)}, status=400)
+
     async def broadcast_state(self, state: Dict):
         self.latest_state = state
         if not self.sockets:
