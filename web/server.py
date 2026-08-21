@@ -709,7 +709,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
             // 1. Metrics
             const equity = data.equity || 10000;
-            const initial = data.initial_balance || 10000;
+            const initial = data.initial_balance || 4923.84;
             const pnlDollars = equity - initial;
             const pnlPct = (pnlDollars / initial) * 100;
 
