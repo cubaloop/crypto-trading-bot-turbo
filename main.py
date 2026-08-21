@@ -42,7 +42,11 @@ class TurboTradingEngine:
             risk_per_trade_pct=config.risk_per_trade_pct,
             max_daily_drawdown_pct=config.max_daily_drawdown_pct
         )
-        self.executor = PaperExecutor(initial_balance_usd=config.initial_virtual_balance)
+        binance_key = os.getenv("BINANCE_TESTNET_API_KEY", "LyS7ZwuG771PRgZSD7T2AoidqJ8FIGnHUrOElsphYMTZg7BQtgkvt8PTEO95zFXX")
+        binance_secret = os.getenv("BINANCE_TESTNET_API_SECRET", "EVWlkCZIJAYRe8bgw7Xu7hRamRqjyWxgEms0zzKTPkHwKTU0ALJxUKSJwUhb7gy6")
+        from execution.binance_testnet_executor import BinanceTestnetExecutorTurbo
+        logger.info("⚡ Conectando KuQuant TURBO a Binance Futures Testnet Oficial (testnet.binancefuture.com)")
+        self.executor = BinanceTestnetExecutorTurbo(api_key=binance_key, secret=binance_secret, leverage=2)
         self.web_server = DashboardServer(
             host=config.host,
             port=config.port,
@@ -65,6 +69,11 @@ class TurboTradingEngine:
         logger.info("=================================================================")
 
         await self.market_stream.initialize()
+        if hasattr(self.executor, 'initialize'):
+            await self.executor.initialize()
+            if hasattr(self.executor, 'initial_balance') and self.executor.initial_balance > 0:
+                self.risk_manager.initial_balance = self.executor.initial_balance
+                self.risk_manager.daily_high_equity = self.executor.initial_balance
         await self.web_server.start()
         self.keep_alive.start()
 
@@ -140,11 +149,16 @@ class TurboTradingEngine:
                                 stop_loss_price=signal.stop_loss
                             )
                             if units > 0:
-                                logger.info(f"⚡ [SEÑAL TURBO MEMORIA-APROBADA] en {symbol}: {signal.action} | {signal.reason}")
-                                self.executor.execute_signal(signal, units)
+                                if asyncio.iscoroutinefunction(self.executor.execute_signal):
+                                    await self.executor.execute_signal(signal, units)
+                                else:
+                                    self.executor.execute_signal(signal, units)
 
                 # 4. Trailing Stops y Cierre de Órdenes (TP1, TP2, Trailing SL)
-                self.executor.update_and_check_exits(current_prices)
+                if asyncio.iscoroutinefunction(self.executor.update_and_check_exits):
+                    await self.executor.update_and_check_exits(current_prices)
+                else:
+                    self.executor.update_and_check_exits(current_prices)
 
                 # Consolidar experiencia en memoria episódica
                 if len(self.executor.trade_history) > self._last_known_trade_count:

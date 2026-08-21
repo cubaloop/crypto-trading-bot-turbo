@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     host: str = os.getenv("HOST", "0.0.0.0")
     port: int = int(os.getenv("PORT", "8001"))
     
-    # Turbo Trading Parameters (Aggressive Scalping Profile)
-    symbols: List[str] = ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+    # Turbo Trading Parameters (Par Dedicado de Micro-Scalping)
+    symbols: List[str] = ["DOGE/USDT"]
     timeframe: str = "1m"
     risk_per_trade_pct: float = 0.02  # 2.0% de riesgo por trade (Perfil Turbo)
     max_daily_drawdown_pct: float = 0.05  # 5.0% circuit breaker
