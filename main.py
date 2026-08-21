@@ -38,7 +38,7 @@ class TurboTradingEngine:
         self.meta_learner = TurboMetaCognitiveLearner()
         self.memory_engine = EpisodicMemoryEngine()
         self.risk_manager = RiskManager(
-            initial_balance=config.initial_virtual_balance,
+            initial_balance=getattr(self.executor, 'initial_balance', 4923.84),
             risk_per_trade_pct=config.risk_per_trade_pct,
             max_daily_drawdown_pct=config.max_daily_drawdown_pct
         )
@@ -62,7 +62,7 @@ class TurboTradingEngine:
     async def initialize(self):
         logger.info("=================================================================")
         logger.info("⚡ INICIANDO BOT AUTÓNOMO KUQUANT TURBO SCALPER • IA META-COGNITIVA & MEMORIA EPISÓDICA 24/7")
-        logger.info(f"Modo: [{config.mode.upper()}] (Capital Virtual: ${config.initial_virtual_balance:,.2f})")
+        logger.info(f"Modo: [{config.mode.upper()}] (Capital Virtual: ${getattr(self.executor, 'initial_balance', 4923.84):,.2f})")
         logger.info(f"Pares Monitoreados: {', '.join(config.symbols)}")
         logger.info(f"Riesgo Turbo: {config.risk_per_trade_pct:.1%} por trade | {config.max_daily_drawdown_pct:.1%} Max DD")
         logger.info("Estrategia: Banco de Memoria + Meta-Learning + Multi-Timeframe EMA + Volatility Squeeze")
@@ -219,7 +219,8 @@ class TurboTradingEngine:
                 await self.web_server.broadcast_state({
                     "iteration": self.iteration,
                     "equity": current_equity,
-                    "initial_balance": config.initial_virtual_balance,
+                    "initial_balance": getattr(self.executor, 'initial_balance', 4923.84),
+                    "balance": getattr(self.executor, 'balance_usd', 4923.84),
                     "decayed_sentiment": decayed_score,
                     "circuit_breaker_active": self.risk_manager.is_circuit_breaker_active,
                     "current_prices": current_prices,
@@ -230,7 +231,7 @@ class TurboTradingEngine:
 
                 # 7. Telemetría en consola cada 5 ciclos
                 if self.iteration % 5 == 0:
-                    pnl_pct = ((current_equity - config.initial_virtual_balance) / config.initial_virtual_balance) * 100
+                    pnl_pct = ((current_equity - getattr(self.executor, 'initial_balance', 4923.84)) / getattr(self.executor, 'initial_balance', 4923.84)) * 100
                     logger.info(f"⚡ [ESTADO TURBO #{self.iteration}] Equity: ${current_equity:,.2f} ({pnl_pct:+.2f}%) | Posiciones: {len(self.executor.positions)}")
 
                 if max_iterations and self.iteration >= max_iterations:
