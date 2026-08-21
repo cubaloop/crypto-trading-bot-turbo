@@ -198,9 +198,9 @@ class TurboTradingEngine:
                         "entry_price": p.entry_price,
                         "units": p.units,
                         "stop_loss": p.stop_loss,
-                        "take_profit": p.take_profit,
-                        "take_profit_2": p.take_profit_2,
-                        "highest_price": p.highest_price,
+                        "take_profit": getattr(p, "take_profit", 0.0),
+                        "take_profit_2": getattr(p, "take_profit_2", getattr(p, "take_profit", 0.0)),
+                        "highest_price": getattr(p, "highest_price", p.entry_price),
                         "lowest_price": p.lowest_price,
                         "opened_at": p.opened_at,
                         "notional_usd": p.notional_usd

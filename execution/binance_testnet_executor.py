@@ -16,12 +16,13 @@ class LiveTurboPosition:
     units: float
     stop_loss: float
     take_profit: float
-    highest_price: float
-    lowest_price: float
-    profit_lock_stage: int
-    opened_at: float
-    notional_usd: float
-    atr: float
+    take_profit_2: float = 0.0
+    highest_price: float = 0.0
+    lowest_price: float = 0.0
+    profit_lock_stage: int = 0
+    opened_at: float = 0.0
+    notional_usd: float = 0.0
+    atr: float = 0.0
 
 class BinanceTestnetExecutorTurbo:
     def __init__(self, api_key: str, secret: str, leverage: int = 2):
