@@ -37,16 +37,16 @@ class TurboTradingEngine:
         self.strategy = TurboStrategy()
         self.meta_learner = TurboMetaCognitiveLearner()
         self.memory_engine = EpisodicMemoryEngine()
-        self.risk_manager = RiskManager(
-            initial_balance=getattr(self.executor, 'initial_balance', 4923.84),
-            risk_per_trade_pct=config.risk_per_trade_pct,
-            max_daily_drawdown_pct=config.max_daily_drawdown_pct
-        )
         binance_key = os.getenv("BINANCE_TESTNET_API_KEY", "LyS7ZwuG771PRgZSD7T2AoidqJ8FIGnHUrOElsphYMTZg7BQtgkvt8PTEO95zFXX")
         binance_secret = os.getenv("BINANCE_TESTNET_API_SECRET", "EVWlkCZIJAYRe8bgw7Xu7hRamRqjyWxgEms0zzKTPkHwKTU0ALJxUKSJwUhb7gy6")
         from execution.binance_testnet_executor import BinanceTestnetExecutorTurbo
         logger.info("⚡ Conectando KuQuant TURBO a Binance Futures Testnet Oficial (testnet.binancefuture.com)")
         self.executor = BinanceTestnetExecutorTurbo(api_key=binance_key, secret=binance_secret, leverage=2)
+        self.risk_manager = RiskManager(
+            initial_balance=getattr(self.executor, 'initial_balance', 4923.84),
+            risk_per_trade_pct=config.risk_per_trade_pct,
+            max_daily_drawdown_pct=config.max_daily_drawdown_pct
+        )
         self.web_server = DashboardServer(
             host=config.host,
             port=config.port,
