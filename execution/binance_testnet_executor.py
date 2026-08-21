@@ -21,6 +21,7 @@ class LiveTurboPosition:
     profit_lock_stage: int
     opened_at: float
     notional_usd: float
+    atr: float
 
 class BinanceTestnetExecutorTurbo:
     def __init__(self, api_key: str, secret: str, leverage: int = 2):
@@ -46,7 +47,7 @@ class BinanceTestnetExecutorTurbo:
             bal = await self.exchange.fetch_balance()
             self.balance_usd = float(bal['total'].get('USDT', 4923.84))
             self.initial_balance = self.balance_usd
-            logger.info(f"⚡ [TURBO BINANCE TESTNET CONECTADO] Balance Oficial: ${self.balance_usd:,.2f} USDT")
+            logger.info(f"⚡ [TURBO BINANCE INSTITUCIONAL CONECTADO] Balance Oficial: ${self.balance_usd:,.2f} USDT")
         except Exception as e:
             logger.error(f"Error inicializando Binance Testnet en TURBO: {e}")
 
@@ -58,12 +59,25 @@ class BinanceTestnetExecutorTurbo:
         side = "buy" if signal.action == "BUY" else "sell"
 
         try:
+            # 1. Filtro de Spread Institucional (< 0.035%)
+            try:
+                ticker = await self.exchange.fetch_ticker(market_symbol)
+                bid = float(ticker.get('bid', signal.entry_price))
+                ask = float(ticker.get('ask', signal.entry_price))
+                if bid > 0 and ask > 0:
+                    spread_pct = (ask - bid) / bid
+                    if spread_pct > 0.00035:
+                        logger.warning(f"🛑 [TURBO SPREAD FILTER] Spread amplio ({spread_pct:.4%}). Esperando compresión.")
+                        return None
+            except Exception:
+                pass
+
             try:
                 await self.exchange.set_leverage(self.leverage, market_symbol)
             except Exception:
                 pass
 
-            # Control estricto de margen seguro (máx $600 notional)
+            # 2. Control de Margen Aislado Seguro (Máximo $600 USDT notional por trade)
             max_safe_notional = min(600.0, self.balance_usd * (self.leverage * 0.15))
             if (units * signal.entry_price) > max_safe_notional:
                 units = max_safe_notional / signal.entry_price
@@ -98,7 +112,8 @@ class BinanceTestnetExecutorTurbo:
                 lowest_price=fill_price,
                 profit_lock_stage=0,
                 opened_at=time.time(),
-                notional_usd=notional
+                notional_usd=notional,
+                atr=getattr(signal, 'atr', fill_price * 0.008)
             )
             self.positions[signal.symbol] = pos
             logger.info(
@@ -106,7 +121,7 @@ class BinanceTestnetExecutorTurbo:
             )
             return pos
         except Exception as e:
-            logger.error(f"Error ejecutando orden en Binance Testnet para TURBO: {e}")
+            logger.error(f"Error ejecutando orden real en Binance Testnet para TURBO: {e}")
             return None
 
     def get_equity(self, current_prices: Dict[str, float]) -> float:
@@ -125,20 +140,54 @@ class BinanceTestnetExecutorTurbo:
             if not curr_p:
                 continue
 
+            if curr_p > pos.highest_price:
+                pos.highest_price = curr_p
+            if curr_p < pos.lowest_price:
+                pos.lowest_price = curr_p
+
             should_close = False
             reason = ""
+            atr_pct = (pos.atr / pos.entry_price) if pos.entry_price > 0 else 0.008
+            hurdle_be = max(0.0045, 1.1 * atr_pct)
 
             if pos.side == "LONG":
+                peak_gain = (pos.highest_price - pos.entry_price) / pos.entry_price
+                if peak_gain >= hurdle_be and pos.profit_lock_stage < 1:
+                    pos.stop_loss = max(pos.stop_loss, pos.entry_price * 1.0012)
+                    pos.profit_lock_stage = 1
+                if peak_gain >= (hurdle_be * 1.6) and pos.profit_lock_stage < 2:
+                    pos.stop_loss = max(pos.stop_loss, pos.entry_price * 1.0050)
+                    pos.profit_lock_stage = 2
+                if peak_gain >= (hurdle_be * 2.5):
+                    trailing_sl = pos.highest_price * (1.0 - (0.5 * atr_pct))
+                    if trailing_sl > pos.stop_loss:
+                        pos.stop_loss = trailing_sl
+                        pos.profit_lock_stage = 3
+
                 if curr_p <= pos.stop_loss:
                     should_close = True
-                    reason = "STOP_LOSS"
+                    reason = "PROFIT_LOCK_EXIT" if pos.stop_loss > pos.entry_price else "STOP_LOSS"
                 elif curr_p >= pos.take_profit:
                     should_close = True
                     reason = "TAKE_PROFIT"
+
             elif pos.side == "SHORT":
+                peak_gain = (pos.entry_price - pos.lowest_price) / pos.entry_price
+                if peak_gain >= hurdle_be and pos.profit_lock_stage < 1:
+                    pos.stop_loss = min(pos.stop_loss, pos.entry_price * 0.9988)
+                    pos.profit_lock_stage = 1
+                if peak_gain >= (hurdle_be * 1.6) and pos.profit_lock_stage < 2:
+                    pos.stop_loss = min(pos.stop_loss, pos.entry_price * 0.9950)
+                    pos.profit_lock_stage = 2
+                if peak_gain >= (hurdle_be * 2.5):
+                    trailing_sl = pos.lowest_price * (1.0 + (0.5 * atr_pct))
+                    if trailing_sl < pos.stop_loss:
+                        pos.stop_loss = trailing_sl
+                        pos.profit_lock_stage = 3
+
                 if curr_p >= pos.stop_loss:
                     should_close = True
-                    reason = "STOP_LOSS"
+                    reason = "PROFIT_LOCK_EXIT" if pos.stop_loss < pos.entry_price else "STOP_LOSS"
                 elif curr_p <= pos.take_profit:
                     should_close = True
                     reason = "TAKE_PROFIT"
@@ -181,7 +230,7 @@ class BinanceTestnetExecutorTurbo:
             }
             self.trade_history.append(closed_trade)
             del self.positions[symbol]
-            logger.info(f"🏆 [POSICIÓN CERRADA BINANCE TURBO] {symbol} | PnL: ${pnl:+,.2f} | Motivo: {reason}")
+            logger.info(f"🏆 [POSICIÓN CERRADA REAL BINANCE TURBO] {symbol} | PnL: ${pnl:+,.2f} | Motivo: {reason}")
         except Exception as e:
             logger.error(f"Error cerrando posición en Binance Testnet para TURBO: {e}")
 
