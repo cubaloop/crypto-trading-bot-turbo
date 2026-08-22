@@ -180,11 +180,17 @@ class BinanceTestnetExecutorTurbo:
                 if peak_gain >= (hurdle_be * 1.5) and pos.profit_lock_stage < 2:
                     pos.stop_loss = max(pos.stop_loss, pos.entry_price * 1.0035)
                     pos.profit_lock_stage = 2
-                if peak_gain >= (hurdle_be * 2.2):
-                    trailing_sl = pos.highest_price * (1.0 - (0.4 * atr_pct))
+                if peak_gain >= (hurdle_be * 2.0):
+                    trailing_sl = pos.highest_price * (1.0 - (0.35 * atr_pct))
                     if trailing_sl > pos.stop_loss:
                         pos.stop_loss = trailing_sl
                         pos.profit_lock_stage = 3
+                # Etapa 4: ULTRA-CEÑIDO CERCA DEL TP (Asegura el 85% de la ganancia)
+                if peak_gain >= (0.75 * micro_tp_gain):
+                    ultra_sl = pos.entry_price + (0.85 * (pos.highest_price - pos.entry_price))
+                    if ultra_sl > pos.stop_loss:
+                        pos.stop_loss = ultra_sl
+                        pos.profit_lock_stage = 4
 
                 if curr_p <= pos.stop_loss:
                     should_close = True
@@ -204,11 +210,17 @@ class BinanceTestnetExecutorTurbo:
                 if peak_gain >= (hurdle_be * 1.5) and pos.profit_lock_stage < 2:
                     pos.stop_loss = min(pos.stop_loss, pos.entry_price * 0.9965)
                     pos.profit_lock_stage = 2
-                if peak_gain >= (hurdle_be * 2.2):
-                    trailing_sl = pos.lowest_price * (1.0 + (0.4 * atr_pct))
+                if peak_gain >= (hurdle_be * 2.0):
+                    trailing_sl = pos.lowest_price * (1.0 + (0.35 * atr_pct))
                     if trailing_sl < pos.stop_loss:
                         pos.stop_loss = trailing_sl
                         pos.profit_lock_stage = 3
+                # Etapa 4: ULTRA-CEÑIDO CERCA DEL TP (Asegura el 85% de la ganancia)
+                if peak_gain >= (0.75 * micro_tp_gain):
+                    ultra_sl = pos.entry_price - (0.85 * (pos.entry_price - pos.lowest_price))
+                    if ultra_sl < pos.stop_loss:
+                        pos.stop_loss = ultra_sl
+                        pos.profit_lock_stage = 4
 
                 if curr_p >= pos.stop_loss:
                     should_close = True
