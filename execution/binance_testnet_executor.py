@@ -149,7 +149,14 @@ class BinanceTestnetExecutorTurbo:
 
     async def update_and_check_exits(self, current_prices: Dict[str, float]):
         for symbol, pos in list(self.positions.items()):
-            curr_p = current_prices.get(symbol, pos.entry_price)
+            curr_p = current_prices.get(symbol)
+            if not curr_p:
+                try:
+                    market_symbol = f"{symbol.split('/')[0]}/USDT:USDT"
+                    ticker = await self.exchange.fetch_ticker(market_symbol)
+                    curr_p = float(ticker.get('last') or ticker.get('close') or pos.entry_price)
+                except Exception:
+                    curr_p = pos.entry_price
             if not curr_p:
                 continue
 
