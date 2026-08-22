@@ -161,8 +161,8 @@ class BinanceTestnetExecutorTurbo:
             should_close = False
             reason = ""
             atr_pct = (pos.atr / pos.entry_price) if pos.entry_price > 0 else 0.008
-            micro_tp_gain = max(0.0028, 0.65 * atr_pct)
-            hurdle_be = max(0.0020, 0.50 * atr_pct)
+            micro_tp_gain = max(0.0075, 1.8 * atr_pct)
+            hurdle_be = max(0.0040, 0.90 * atr_pct)
 
             # 1. Salida por Estancamiento / Time-Decay (Rotación dinámica de capital)
             position_age_sec = time.time() - pos.opened_at
