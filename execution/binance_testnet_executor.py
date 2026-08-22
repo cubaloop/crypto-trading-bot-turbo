@@ -192,11 +192,18 @@ class BinanceTestnetExecutorTurbo:
                     if trailing_sl > pos.stop_loss:
                         pos.stop_loss = trailing_sl
                         pos.profit_lock_stage = 3
-                # Etapa 4: ULTRA-CEÑIDO CERCA DEL TP (Asegura el 85% de la ganancia)
-                if peak_gain >= (0.75 * micro_tp_gain):
+                # Etapa 4 Dinámica: Si es TREND_RUNNER deja correr hasta el TP; si es MEAN_REVERSION asegura el 85%
+                is_runner = getattr(pos, 'operation_type', '') in ['TREND_RUNNER', 'QUANTUM_AVALANCHE_SURGE']
+                if not is_runner and peak_gain >= (0.75 * micro_tp_gain):
                     ultra_sl = pos.entry_price + (0.85 * (pos.highest_price - pos.entry_price))
                     if ultra_sl > pos.stop_loss:
                         pos.stop_loss = ultra_sl
+                        pos.profit_lock_stage = 4
+                elif is_runner and peak_gain >= (0.85 * micro_tp_gain):
+                    # En tendencia fuerte dejamos un colchón de 0.5x ATR para no ser sacados por una mecha
+                    runner_sl = pos.highest_price - (0.50 * pos.atr)
+                    if runner_sl > pos.stop_loss:
+                        pos.stop_loss = runner_sl
                         pos.profit_lock_stage = 4
 
                 if curr_p <= pos.stop_loss:
@@ -222,11 +229,17 @@ class BinanceTestnetExecutorTurbo:
                     if trailing_sl < pos.stop_loss:
                         pos.stop_loss = trailing_sl
                         pos.profit_lock_stage = 3
-                # Etapa 4: ULTRA-CEÑIDO CERCA DEL TP (Asegura el 85% de la ganancia)
-                if peak_gain >= (0.75 * micro_tp_gain):
+                # Etapa 4 Dinámica: Si es TREND_RUNNER deja correr hasta el TP; si es MEAN_REVERSION asegura el 85%
+                is_runner = getattr(pos, 'operation_type', '') in ['TREND_RUNNER', 'QUANTUM_AVALANCHE_SURGE']
+                if not is_runner and peak_gain >= (0.75 * micro_tp_gain):
                     ultra_sl = pos.entry_price - (0.85 * (pos.entry_price - pos.lowest_price))
                     if ultra_sl < pos.stop_loss:
                         pos.stop_loss = ultra_sl
+                        pos.profit_lock_stage = 4
+                elif is_runner and peak_gain >= (0.85 * micro_tp_gain):
+                    runner_sl = pos.lowest_price + (0.50 * pos.atr)
+                    if runner_sl < pos.stop_loss:
+                        pos.stop_loss = runner_sl
                         pos.profit_lock_stage = 4
 
                 if curr_p >= pos.stop_loss:
