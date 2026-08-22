@@ -159,6 +159,7 @@ class BinanceTestnetExecutorTurbo:
             logger.info(
                 f"⚡ [ORDEN REAL BINANCE TURBO] {signal.action} {actual_units} {signal.symbol} @ ${fill_price:,.4f} | ID: {pos_id}"
             )
+            asyncio.create_task(self.sync_native_binance_stop_loss(signal.symbol, pos.stop_loss, pos.side, pos.units))
             return pos
         except Exception as e:
             logger.error(f"Error ejecutando orden real en Binance Testnet para TURBO: {e}")
@@ -233,6 +234,11 @@ class BinanceTestnetExecutorTurbo:
                         pos.stop_loss = runner_sl
                         pos.profit_lock_stage = 4
 
+                # Sincronizar Stop Loss nativo en Binance si cambió de nivel
+                if getattr(pos, '_last_synced_sl', 0.0) != pos.stop_loss:
+                    pos._last_synced_sl = pos.stop_loss
+                    asyncio.create_task(self.sync_native_binance_stop_loss(symbol, pos.stop_loss, pos.side, pos.units))
+
                 if curr_p <= pos.stop_loss:
                     should_close = True
                     reason = "PROFIT_LOCK_EXIT" if pos.stop_loss > pos.entry_price else "STOP_LOSS"
@@ -281,6 +287,44 @@ class BinanceTestnetExecutorTurbo:
 
             if should_close:
                 await self.close_position(symbol, exit_price=curr_p, reason=reason)
+
+
+    async def sync_native_binance_stop_loss(self, symbol: str, stop_price: float, side: str, amount: float):
+        """
+        COLOCA O ACTUALIZA UNA ORDEN 'STOP_MARKET' REAL EN LOS SERVIDORES DE BINANCE.
+        Garantiza que aunque el bot se apague, el servidor se reinicie o se caiga internet,
+        BINANCE EJECUTARÁ EL CIERRE AUTOMÁTICAMENTE EN SU PROPIO MOTOR DE CALCE.
+        """
+        market_symbol = f"{symbol.split('/')[0]}/USDT:USDT"
+        close_side = "sell" if side == "LONG" else "buy"
+        try:
+            # Cancelar cualquier orden de Stop Loss anterior en Binance para ese símbolo
+            open_orders = await self.exchange.fetch_open_orders(market_symbol)
+            for o in open_orders:
+                if o.get('type') in ['stop_market', 'stop', 'STOP_MARKET', 'STOP']:
+                    try:
+                        await self.exchange.cancel_order(o['id'], market_symbol)
+                    except Exception:
+                        pass
+            
+            # Crear la nueva orden STOP_MARKET nativa en Binance
+            formatted_stop = round(float(stop_price), 4 if stop_price < 10 else 2)
+            params = {
+                'stopPrice': formatted_stop,
+                'reduceOnly': True
+            }
+            order = await self.exchange.create_order(
+                symbol=market_symbol,
+                type='STOP_MARKET',
+                side=close_side,
+                amount=amount,
+                params=params
+            )
+            logger.info(f"🛡️ [STOP LOSS NATIVO EN BINANCE] {market_symbol} {close_side.upper()} {amount} @ Trigg: ${formatted_stop:,.4f} | ID: {order.get('id')}")
+            return order
+        except Exception as e:
+            logger.error(f"Error sincronizando Stop Loss nativo en Binance: {e}")
+            return None
 
     async def close_position(self, symbol: str, exit_price: float, reason: str):
         pos = self.positions.get(symbol)
