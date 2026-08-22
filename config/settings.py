@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # Turbo Trading Parameters (Par Dedicado de Micro-Scalping)
     symbols: List[str] = ["DOGE/USDT"]
     timeframe: str = "1m"
-    risk_per_trade_pct: float = 0.00  # MODO STANDBY (Capital concentrado en Turing y Bare)
+    risk_per_trade_pct: float = 0.00  # MODO STANDBY (0% de capital asignado)
     max_daily_drawdown_pct: float = 0.05  # 5.0% circuit breaker
     initial_virtual_balance: float = 10000.0
     price_poll_interval_seconds: float = 1.0  # Ultra-rápido (1 segundo)
