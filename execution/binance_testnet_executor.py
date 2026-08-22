@@ -48,9 +48,36 @@ class BinanceTestnetExecutorTurbo:
             bal = await self.exchange.fetch_balance()
             self.balance_usd = float(bal['total'].get('USDT', 4923.84))
             self.initial_balance = self.balance_usd
-            logger.info(f"⚡ [TURBO BINANCE INSTITUCIONAL CONECTADO] Balance Oficial: ${self.balance_usd:,.2f} USDT")
+            try:
+                remote_positions = await self.exchange.fetch_positions()
+                for rp in remote_positions:
+                    contracts = float(rp.get('contracts', 0))
+                    sym = rp.get('symbol', '').split(':')[0]
+                    if contracts > 0 and sym:
+                        side = "LONG" if rp.get('side') == 'long' else "SHORT"
+                        entry_p = float(rp.get('entryPrice', 0))
+                        pos_id = f"binance_synced_{int(time.time())}"
+                        self.positions[sym] = LivePosition(
+                            id=pos_id,
+                            symbol=sym,
+                            side=side,
+                            entry_price=entry_p,
+                            units=contracts,
+                            stop_loss=entry_p * 0.985 if side == "LONG" else entry_p * 1.015,
+                            take_profit=entry_p * 1.035 if side == "LONG" else entry_p * 0.965,
+                            highest_price=entry_p,
+                            lowest_price=entry_p,
+                            profit_lock_stage=0,
+                            opened_at=time.time(),
+                            notional_usd=float(rp.get('notional', entry_p * contracts)),
+                            atr=entry_p * 0.01
+                        )
+                        logger.info(f"⚡ [POSICIÓN RECONCILIADA] {side} {contracts} {sym} @ ${entry_p:,.2f}")
+            except Exception as pe:
+                pass
+            logger.info(f"⚡ [CONECTADO] Balance: ${self.balance_usd:,.2f} USDT | Posiciones: {len(self.positions)}")
         except Exception as e:
-            logger.error(f"Error inicializando Binance Testnet en TURBO: {e}")
+            logger.error(f"Error inicializando Binance: {e}")
 
     async def execute_signal(self, signal, units: float):
         if signal.action not in ["BUY", "SELL"] or units <= 0:
