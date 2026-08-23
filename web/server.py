@@ -927,10 +927,13 @@ class DashboardServer:
                 pass
 
     async def start(self):
-        self.runner = web.AppRunner(self.app)
-        await self.runner.setup()
-        self.site = web.TCPSite(self.runner, self.host, self.port)
-        await self.site.start()
+        try:
+            self.runner = web.AppRunner(self.app)
+            await self.runner.setup()
+            self.site = web.TCPSite(self.runner, self.host, self.port)
+            await self.site.start()
+        except Exception as e:
+            logger.warning(f"Aviso al iniciar servidor web en puerto {self.port}: {e}")
         logger.info(f"⚡ DASHBOARD TURBO DISPONIBLE EN: http://localhost:{self.port}")
 
     async def stop(self):
