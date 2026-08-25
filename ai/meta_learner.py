@@ -17,7 +17,7 @@ class TurboMetaCognitiveLearner:
         self.w_trend: float = 0.35
         self.w_volume: float = 0.25
         
-        self.dynamic_threshold: float = 0.30
+        self.dynamic_threshold: float = 0.20
         self.consecutive_losses: int = 0
         self.last_reflection_message: str = "🧠 [IA TURBO]: Scalper meta-cognitivo activo."
 
@@ -35,13 +35,13 @@ class TurboMetaCognitiveLearner:
         self.consecutive_losses = consec_losses
 
         if consec_losses >= 2:
-            self.dynamic_threshold = min(0.45, 0.30 + (0.05 * consec_losses))
+            self.dynamic_threshold = min(0.40, 0.20 + (0.05 * consec_losses))
             self.w_trend = 0.50
             self.w_momentum = 0.30
             self.w_volume = 0.20
             msg = f"🛡️ [IA TURBO SCALP DEFENSE]: Racha de {consec_losses} pérdidas. Elevando umbral a {self.dynamic_threshold:.2f}."
         else:
-            self.dynamic_threshold = 0.30
+            self.dynamic_threshold = 0.20
             self.w_momentum = 0.40
             self.w_trend = 0.35
             self.w_volume = 0.25
