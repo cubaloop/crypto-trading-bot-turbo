@@ -114,19 +114,8 @@ class BinanceTestnetExecutorTurbo:
             if amount_formatted <= 0:
                 return None
 
-            # 1. Intento de Entrada Límite Post-Only (Comisión Reducida Maker)
-            try:
-                order = await self.exchange.create_order(
-                    symbol=market_symbol,
-                    type='limit',
-                    side=side,
-                    amount=amount_formatted,
-                    price=signal.entry_price,
-                    params={'postOnly': True}
-                )
-            except Exception as post_only_err:
-                logger.info(f"Colocación Post-Only ajustada a mercado para garantizar llenado: {post_only_err}")
-                order = await self.exchange.create_order(
+            # 1. Ejecución Directa a Mercado para Ultra-Baja Latencia
+            order = await self.exchange.create_order(
                 symbol=market_symbol,
                 type='market',
                 side=side,
