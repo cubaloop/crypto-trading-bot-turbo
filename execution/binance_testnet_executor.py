@@ -57,7 +57,7 @@ class BinanceTestnetExecutorTurbo:
                         side = "LONG" if rp.get('side') == 'long' else "SHORT"
                         entry_p = float(rp.get('entryPrice', 0))
                         pos_id = f"binance_synced_{int(time.time())}"
-                        self.positions[sym] = LivePosition(
+                        self.positions[sym] = LiveTurboPosition(
                             id=pos_id,
                             symbol=sym,
                             side=side,
