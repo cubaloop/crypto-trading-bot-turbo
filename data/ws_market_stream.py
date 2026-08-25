@@ -73,46 +73,47 @@ class MarketStream:
 
     async def _fetch_direct_rest_bybit(self, symbol: str) -> Optional[MarketSnapshot]:
         raw_sym = symbol.replace("/", "")
-        url = f"https://api.bybit.com/v5/market/orderbook?category=spot&symbol={raw_sym}&limit=20"
-        try:
-            import aiohttp
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=4) as res:
-                    if res.status == 200:
-                        data = await res.json()
-                        result = data.get("result", {})
-                        bids = [[float(p), float(v)] for p, v in result.get("b", [])]
-                        asks = [[float(p), float(v)] for p, v in result.get("a", [])]
-                        if bids and asks:
-                            best_bid, best_bid_v = bids[0][0], bids[0][1]
-                            best_ask, best_ask_v = asks[0][0], asks[0][1]
-                            last_price = (best_bid + best_ask) / 2.0
-                            
-                            top_bids_v = sum(b[1] for b in bids[:10])
-                            top_asks_v = sum(a[1] for a in asks[:10])
-                            tot = top_bids_v + top_asks_v
-                            obi = (top_bids_v - top_asks_v) / tot if tot > 0 else 0.0
-                            
-                            prev_obi = self.last_obis.get(symbol, obi)
-                            obi_accel = float(np.clip((obi - prev_obi) * 2.0, -1.0, 1.0))
-                            self.last_obis[symbol] = obi
+        for cat in ["linear", "spot"]:
+            url = f"https://api.bybit.com/v5/market/orderbook?category={cat}&symbol={raw_sym}&limit=20"
+            try:
+                import aiohttp
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url, timeout=4) as res:
+                        if res.status == 200:
+                            data = await res.json()
+                            result = data.get("result", {})
+                            bids = [[float(p), float(v)] for p, v in result.get("b", [])]
+                            asks = [[float(p), float(v)] for p, v in result.get("a", [])]
+                            if bids and asks:
+                                best_bid, best_bid_v = bids[0][0], bids[0][1]
+                                best_ask, best_ask_v = asks[0][0], asks[0][1]
+                                last_price = (best_bid + best_ask) / 2.0
+                                
+                                top_bids_v = sum(b[1] for b in bids[:10])
+                                top_asks_v = sum(a[1] for a in asks[:10])
+                                tot = top_bids_v + top_asks_v
+                                obi = (top_bids_v - top_asks_v) / tot if tot > 0 else 0.0
+                                
+                                prev_obi = self.last_obis.get(symbol, obi)
+                                obi_accel = float(np.clip((obi - prev_obi) * 2.0, -1.0, 1.0))
+                                self.last_obis[symbol] = obi
 
-                            self.last_prices[symbol] = last_price
-                            snap = MarketSnapshot(
-                                symbol=symbol,
-                                last_price=last_price,
-                                bid_price=best_bid,
-                                ask_price=best_ask,
-                                spread=best_ask - best_bid,
-                                order_book_imbalance=float(np.clip(obi, -1.0, 1.0)),
-                                obi_acceleration=obi_accel,
-                                microprice=last_price,
-                                timestamp=time.time()
-                            )
-                            self.snapshots[symbol] = snap
-                            return snap
-        except Exception as e:
-            logger.error(f"Error en REST directo de Bybit para {symbol}: {e}")
+                                self.last_prices[symbol] = last_price
+                                snap = MarketSnapshot(
+                                    symbol=symbol,
+                                    last_price=last_price,
+                                    bid_price=best_bid,
+                                    ask_price=best_ask,
+                                    spread=best_ask - best_bid,
+                                    order_book_imbalance=float(np.clip(obi, -1.0, 1.0)),
+                                    obi_acceleration=obi_accel,
+                                    microprice=last_price,
+                                    timestamp=time.time()
+                                )
+                                self.snapshots[symbol] = snap
+                                return snap
+            except Exception as e:
+                pass
         return None
 
     async def fetch_snapshot(self, symbol: str) -> MarketSnapshot:
