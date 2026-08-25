@@ -25,7 +25,7 @@ class TurboStrategy:
         bb_window: int = 20,
         bb_std: float = 2.0,
         atr_window: int = 14,
-        signal_threshold: float = 0.42  # Exigir alta convicción para evitar ruido
+        signal_threshold: float = 0.22  # Umbral ágil para capturar rupturas en memecoins
     ):
         self.bb_window = bb_window
         self.bb_std = bb_std
