@@ -110,7 +110,15 @@ class BinanceTestnetExecutorTurbo:
             if (units * signal.entry_price) > max_safe_notional:
                 units = max_safe_notional / signal.entry_price
 
-            amount_formatted = round(units, 0)
+            # Precisión dinámica de contratos según el par
+            base_coin = signal.symbol.split('/')[0]
+            if base_coin in ["BTC", "ETH"]:
+                amount_formatted = round(units, 3)
+            elif base_coin in ["SOL", "NEAR", "AVAX", "LINK"]:
+                amount_formatted = round(units, 2)
+            else:
+                amount_formatted = round(units, 0)
+                
             if amount_formatted <= 0:
                 return None
 
