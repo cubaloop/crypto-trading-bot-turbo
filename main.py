@@ -43,10 +43,10 @@ class SimpleAutonomousEngine:
         self.is_running = False
         self.iteration = 0
         
-        # Inteligencia en RAM: Contador de Rachas (Kelly Dinámico)
+        # Inteligencia en RAM: Contador de Rachas (Kelly Dinámico con TODO EL FONDO)
         self.consecutive_wins = 0
         self.consecutive_losses = 0
-        self.base_notional = 400.0
+        self.base_notional = 1800.0  # Asignación de Capital Real Fuerte ($1,800 USDT por trade)
 
     async def initialize(self):
         logger.info("🚀 Inicializando Motor Puro Ultra-Básico en Binance Futures Testnet...")
@@ -59,12 +59,12 @@ class SimpleAutonomousEngine:
             logger.warning(f"Aviso en inicialización: {e}")
 
     def compute_dynamic_notional(self) -> float:
-        # Si viene en racha ganadora (>=2 wins) -> escala a $550 USDT
+        # Si viene en racha ganadora (>=2 wins) -> escala a $2,400 USDT
         if self.consecutive_wins >= 2:
-            return min(600.0, self.base_notional + (self.consecutive_wins * 50.0))
-        # Si sufre racha perdedora (>=2 losses) -> reduce a $200 USDT para proteger
+            return min(2500.0, self.base_notional + (self.consecutive_wins * 250.0))
+        # Si sufre racha perdedora (>=2 losses) -> reduce a $800 USDT para proteger
         elif self.consecutive_losses >= 2:
-            return max(150.0, self.base_notional - (self.consecutive_losses * 100.0))
+            return max(600.0, self.base_notional - (self.consecutive_losses * 400.0))
         return self.base_notional
 
     def get_contract_amount(self, symbol: str, notional_usd: float, price: float) -> float:
@@ -266,8 +266,8 @@ class SimpleAutonomousEngine:
                         elif age_seconds >= 90.0:
                             await self.execute_close(symbol, current_price, f"ROTACION_TIEMPO_{int(age_seconds)}s")
 
-                    # 3. Lógica de Disparo: Micro-Momentum + Filtro OBI en RAM
-                    elif len(self.positions) < 2 and len(history) >= 5:
+                    # 3. Lógica de Disparo: Micro-Momentum + Filtro OBI en RAM (Hasta 3 trades simultáneos)
+                    elif len(self.positions) < 3 and len(history) >= 5:
                         recent_change = (current_price - history[-5]) / history[-5]
                         regime = self.detect_volatility_regime(history)
                         
