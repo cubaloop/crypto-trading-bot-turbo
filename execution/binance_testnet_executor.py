@@ -94,7 +94,7 @@ class BinanceTestnetExecutorTurbo:
                 ask = float(ticker.get('ask', signal.entry_price))
                 if bid > 0 and ask > 0:
                     spread_pct = (ask - bid) / bid
-                    if spread_pct > 0.00035:
+                    if spread_pct > 0.0015:
                         logger.warning(f"🛑 [TURBO SPREAD FILTER] Spread amplio ({spread_pct:.4%}). Esperando compresión.")
                         return None
             except Exception:
