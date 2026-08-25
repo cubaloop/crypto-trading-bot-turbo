@@ -154,7 +154,7 @@ class SimpleAutonomousEngine:
                     if len(history) > 30:
                         self.price_history[symbol] = history[-30:]
 
-                    # 2. Gestionar salidas de posiciones abiertas (TP / SL / Time-Stop)
+                    # 2. Gestionar salidas de posiciones abiertas (Breakeven / Trailing Stop / TP / SL / Time-Stop)
                     if symbol in self.positions:
                         pos = self.positions[symbol]
                         entry_p = pos["entry_price"]
@@ -163,13 +163,56 @@ class SimpleAutonomousEngine:
                         tp = pos["take_profit"]
                         age_seconds = time.time() - pos["opened_at"]
 
-                        # Take Profit
+                        # Actualizar pico de precio alcanzado (Highest / Lowest)
+                        if "peak_price" not in pos:
+                            pos["peak_price"] = current_price
+                        
+                        if side == "LONG":
+                            if current_price > pos["peak_price"]:
+                                pos["peak_price"] = current_price
+                            
+                            pnl_pct = (current_price - entry_p) / entry_p
+
+                            # A. Breakeven Dinámico (+0.25% de ganancia -> SL a Entrada + 0.05%)
+                            if pnl_pct >= 0.0025 and sl < entry_p * 1.0005:
+                                pos["stop_loss"] = entry_p * 1.0005
+                                logger.info(f"🛡️ [BREAKEVEN ACTIVADO] {symbol} LONG asegurado a ${pos['stop_loss']:,.4f}")
+
+                            # B. Trailing Stop Dinámico (Persigue el precio a 0.20% del pico si sube > +0.35%)
+                            if pnl_pct >= 0.0035:
+                                new_trailing_sl = pos["peak_price"] * 0.9980
+                                if new_trailing_sl > pos["stop_loss"]:
+                                    pos["stop_loss"] = new_trailing_sl
+                                    logger.info(f"📈 [TRAILING STOP LONG] {symbol} SL elevado a ${new_trailing_sl:,.4f}")
+
+                        else:  # SHORT
+                            if current_price < pos["peak_price"]:
+                                pos["peak_price"] = current_price
+                            
+                            pnl_pct = (entry_p - current_price) / entry_p
+
+                            # A. Breakeven Dinámico
+                            if pnl_pct >= 0.0025 and sl > entry_p * 0.9995:
+                                pos["stop_loss"] = entry_p * 0.9995
+                                logger.info(f"🛡️ [BREAKEVEN ACTIVADO] {symbol} SHORT asegurado a ${pos['stop_loss']:,.4f}")
+
+                            # B. Trailing Stop Dinámico
+                            if pnl_pct >= 0.0035:
+                                new_trailing_sl = pos["peak_price"] * 1.0020
+                                if new_trailing_sl < pos["stop_loss"]:
+                                    pos["stop_loss"] = new_trailing_sl
+                                    logger.info(f"📈 [TRAILING STOP SHORT] {symbol} SL bajado a ${new_trailing_sl:,.4f}")
+
+                        # C. Evaluaciones de Salida
+                        # Take Profit Extendido
                         if (side == "LONG" and current_price >= tp) or (side == "SHORT" and current_price <= tp):
                             await self.execute_close(symbol, current_price, "TAKE_PROFIT_ALCANZADO")
-                        # Stop Loss
-                        elif (side == "LONG" and current_price <= sl) or (side == "SHORT" and current_price >= sl):
-                            await self.execute_close(symbol, current_price, "STOP_LOSS_ACTIVADO")
-                        # Cierre por tiempo si la operación supera 90 segundos (Rotación ágil)
+                        # Stop Loss / Trailing Stop Trigger
+                        elif (side == "LONG" and current_price <= pos["stop_loss"]) or (side == "SHORT" and current_price >= pos["stop_loss"]):
+                            is_trailing = (pos["stop_loss"] > entry_p) if side == "LONG" else (pos["stop_loss"] < entry_p)
+                            reason = "TRAILING_STOP_EJECUTADO" if is_trailing else "STOP_LOSS_ACTIVADO"
+                            await self.execute_close(symbol, current_price, reason)
+                        # Time-Stop (90s de rotación)
                         elif age_seconds >= 90.0:
                             await self.execute_close(symbol, current_price, f"ROTACION_TIEMPO_{int(age_seconds)}s")
 
