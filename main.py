@@ -107,16 +107,9 @@ class SimpleAutonomousEngine:
             )
             fill_price = float(order.get('average') or order.get('price') or price)
             
-            # TP y SL Amplios para Captura Real de Beneficios (Superando Comisiones)
-            if regime == "EXPLOSION":
-                tp_mult = 0.0220  # +2.20% en expansión (Objetivo: $40 - $55 USD netos)
-                sl_mult = 0.0120  # -1.20% de SL con holgura para volatilidad
-            elif regime == "RANGO":
-                tp_mult = 0.0100  # +1.00% en rango (Objetivo: $18 - $25 USD netos)
-                sl_mult = 0.0070  # -0.70%
-            else:
-                tp_mult = 0.0150  # +1.50% estándar (Objetivo: $27 - $36 USD netos)
-                sl_mult = 0.0090  # -0.90%
+            # Calibración Ágil de Alta Frecuencia (Captura Rápida de Beneficios)
+            tp_mult = 0.0080  # +0.80% TP ($14 - $20 USD netos por trade)
+            sl_mult = 0.0050  # -0.50% SL estricto
 
             if side == "LONG":
                 sl = fill_price * (1.0 - sl_mult)
@@ -220,14 +213,14 @@ class SimpleAutonomousEngine:
                             
                             pnl_pct = (current_price - entry_p) / entry_p
 
-                            # A. Breakeven Dinámico (+0.50% de ganancia -> Asegura Entrada + 0.15% ganancia neta)
-                            if pnl_pct >= 0.0050 and sl < entry_p * 1.0015:
-                                pos["stop_loss"] = entry_p * 1.0015
-                                logger.info(f"🛡️ [BREAKEVEN GANADOR] {symbol} LONG asegurado a ${pos['stop_loss']:,.4f} (+0.15% neto)")
+                            # A. Breakeven Rápido (+0.30% de ganancia -> Asegura Entrada + 0.08% neto)
+                            if pnl_pct >= 0.0030 and sl < entry_p * 1.0008:
+                                pos["stop_loss"] = entry_p * 1.0008
+                                logger.info(f"🛡️ [BREAKEVEN GANADOR] {symbol} LONG asegurado a ${pos['stop_loss']:,.4f}")
 
-                            # B. Trailing Stop Dinámico (Persigue el precio a 0.40% del pico si sube > +0.80%)
-                            if pnl_pct >= 0.0080:
-                                new_trailing_sl = pos["peak_price"] * 0.9960
+                            # B. Trailing Stop Rápido (Persigue el precio a 0.25% del pico si sube > +0.50%)
+                            if pnl_pct >= 0.0050:
+                                new_trailing_sl = pos["peak_price"] * 0.9975
                                 if new_trailing_sl > pos["stop_loss"]:
                                     pos["stop_loss"] = new_trailing_sl
                                     logger.info(f"📈 [TRAILING STOP LONG] {symbol} SL elevado a ${new_trailing_sl:,.4f}")
@@ -238,48 +231,38 @@ class SimpleAutonomousEngine:
                             
                             pnl_pct = (entry_p - current_price) / entry_p
 
-                            # A. Breakeven Dinámico (+0.50% de ganancia -> Asegura Entrada - 0.15% ganancia neta)
-                            if pnl_pct >= 0.0050 and sl > entry_p * 0.9985:
-                                pos["stop_loss"] = entry_p * 0.9985
-                                logger.info(f"🛡️ [BREAKEVEN GANADOR] {symbol} SHORT asegurado a ${pos['stop_loss']:,.4f} (+0.15% neto)")
+                            # A. Breakeven Rápido (+0.30% de ganancia -> Asegura Entrada - 0.08% neto)
+                            if pnl_pct >= 0.0030 and sl > entry_p * 0.9992:
+                                pos["stop_loss"] = entry_p * 0.9992
+                                logger.info(f"🛡️ [BREAKEVEN GANADOR] {symbol} SHORT asegurado a ${pos['stop_loss']:,.4f}")
 
-                            # B. Trailing Stop Dinámico
-                            if pnl_pct >= 0.0080:
-                                new_trailing_sl = pos["peak_price"] * 1.0040
+                            # B. Trailing Stop Rápido
+                            if pnl_pct >= 0.0050:
+                                new_trailing_sl = pos["peak_price"] * 1.0025
                                 if new_trailing_sl < pos["stop_loss"]:
                                     pos["stop_loss"] = new_trailing_sl
                                     logger.info(f"📈 [TRAILING STOP SHORT] {symbol} SL bajado a ${new_trailing_sl:,.4f}")
 
                         # C. Evaluaciones de Salida
-                        # Take Profit Extendido
                         if (side == "LONG" and current_price >= tp) or (side == "SHORT" and current_price <= tp):
                             await self.execute_close(symbol, current_price, "TAKE_PROFIT_ALCANZADO")
-                        # Stop Loss / Trailing Stop Trigger
                         elif (side == "LONG" and current_price <= pos["stop_loss"]) or (side == "SHORT" and current_price >= pos["stop_loss"]):
                             is_trailing = (pos["stop_loss"] > entry_p) if side == "LONG" else (pos["stop_loss"] < entry_p)
                             reason = "TRAILING_STOP_EJECUTADO" if is_trailing else "STOP_LOSS_ACTIVADO"
                             await self.execute_close(symbol, current_price, reason)
-                        # Time-Stop Maduro (180 segundos para dar tiempo a que se desarrolle la corrida)
-                        elif age_seconds >= 180.0:
-                            await self.execute_close(symbol, current_price, f"ROTACION_MADURA_{int(age_seconds)}s")
+                        # Rotación Ágil de Alta Frecuencia (60 segundos)
+                        elif age_seconds >= 60.0:
+                            await self.execute_close(symbol, current_price, f"ROTACION_AGIL_{int(age_seconds)}s")
 
-                    # 3. Lógica de Disparo: Micro-Momentum + Filtro OBI en RAM (Hasta 3 trades simultáneos)
-                    elif len(self.positions) < 3 and len(history) >= 5:
-                        recent_change = (current_price - history[-5]) / history[-5]
+                    # 3. Lógica de Disparo: Máxima Sensibilidad de Momentum (+/-0.03%)
+                    elif len(self.positions) < 3 and len(history) >= 4:
+                        recent_change = (current_price - history[-4]) / history[-4]
                         regime = self.detect_volatility_regime(history)
                         
-                        # Lectura instantánea de Asimetría del Libro L2 (OBI)
-                        bid_vol = float(ticker.get('bidVolume', 0.0) or 0.0)
-                        ask_vol = float(ticker.get('askVolume', 0.0) or 0.0)
-                        total_vol = bid_vol + ask_vol
-                        obi = (bid_vol - ask_vol) / total_vol if total_vol > 0 else 0.0
-                        
-                        # Si hay un micro-impulso alcista (+0.04%) y el libro NO está dominado por vendedores (OBI > -0.40)
-                        if recent_change > 0.0004 and obi >= -0.40:
-                            await self.execute_open(symbol, "LONG", current_price, f"Impulso Alcista (+{recent_change:.3%} | OBI: {obi:+.2f})", regime)
-                        # Si hay un micro-impulso bajista (-0.04%) y el libro NO está dominado por compradores (OBI < +0.40)
-                        elif recent_change < -0.0004 and obi <= 0.40:
-                            await self.execute_open(symbol, "SHORT", current_price, f"Impulso Bajista ({recent_change:.3%} | OBI: {obi:+.2f})", regime)
+                        if recent_change > 0.0003:
+                            await self.execute_open(symbol, "LONG", current_price, f"Impulso Alcista (+{recent_change:.3%})", regime)
+                        elif recent_change < -0.0003:
+                            await self.execute_open(symbol, "SHORT", current_price, f"Impulso Bajista ({recent_change:.3%})", regime)
 
                 except Exception as e:
                     logger.debug(f"Error procesando {symbol}: {e}")
