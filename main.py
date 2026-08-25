@@ -266,17 +266,23 @@ class SimpleAutonomousEngine:
                         elif age_seconds >= 90.0:
                             await self.execute_close(symbol, current_price, f"ROTACION_TIEMPO_{int(age_seconds)}s")
 
-                    # 3. Lógica Ultra-Básica de Disparo: Momentum y Ruptura Simple
+                    # 3. Lógica de Disparo: Micro-Momentum + Filtro OBI en RAM
                     elif len(self.positions) < 2 and len(history) >= 5:
                         recent_change = (current_price - history[-5]) / history[-5]
                         regime = self.detect_volatility_regime(history)
                         
-                        # Si hay un micro-impulso alcista (+0.04% en 5 ticks) -> COMPRA
-                        if recent_change > 0.0004:
-                            await self.execute_open(symbol, "LONG", current_price, f"Impulso Alcista (+{recent_change:.3%})", regime)
-                        # Si hay un micro-impulso bajista (-0.04% en 5 ticks) -> VENTA CORTA
-                        elif recent_change < -0.0004:
-                            await self.execute_open(symbol, "SHORT", current_price, f"Impulso Bajista ({recent_change:.3%})", regime)
+                        # Lectura instantánea de Asimetría del Libro L2 (OBI)
+                        bid_vol = float(ticker.get('bidVolume', 0.0) or 0.0)
+                        ask_vol = float(ticker.get('askVolume', 0.0) or 0.0)
+                        total_vol = bid_vol + ask_vol
+                        obi = (bid_vol - ask_vol) / total_vol if total_vol > 0 else 0.0
+                        
+                        # Si hay un micro-impulso alcista (+0.04%) y el libro NO está dominado por vendedores (OBI > -0.40)
+                        if recent_change > 0.0004 and obi >= -0.40:
+                            await self.execute_open(symbol, "LONG", current_price, f"Impulso Alcista (+{recent_change:.3%} | OBI: {obi:+.2f})", regime)
+                        # Si hay un micro-impulso bajista (-0.04%) y el libro NO está dominado por compradores (OBI < +0.40)
+                        elif recent_change < -0.0004 and obi <= 0.40:
+                            await self.execute_open(symbol, "SHORT", current_price, f"Impulso Bajista ({recent_change:.3%} | OBI: {obi:+.2f})", regime)
 
                 except Exception as e:
                     logger.debug(f"Error procesando {symbol}: {e}")
