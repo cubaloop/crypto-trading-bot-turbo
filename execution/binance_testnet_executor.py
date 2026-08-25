@@ -195,95 +195,39 @@ class BinanceTestnetExecutorTurbo:
 
             should_close = False
             reason = ""
-            atr_pct = (pos.atr / pos.entry_price) if pos.entry_price > 0 else 0.008
-            micro_tp_gain = max(0.0075, 1.8 * atr_pct)
-            hurdle_be = max(0.0040, 0.90 * atr_pct)
-
-            # 1. Salida por Estancamiento / Time-Decay (Rotación dinámica de capital)
-            position_age_sec = time.time() - pos.opened_at
-            price_variation = abs(curr_p - pos.entry_price) / max(1.0, pos.entry_price)
-            if position_age_sec >= 600 and price_variation <= 0.0018:
+            # 2. ExitManager Simplificado Ultra-Sensible (Scalping Rápido)
+            from execution.turing_exit_manager_simplified import (
+                SimplifiedPosition, SYMBOL_EXIT_PARAMS, DEFAULT_EXIT_PARAMS,
+                update_simplified_exit, check_time_decay, check_exit_trigger
+            )
+            params = SYMBOL_EXIT_PARAMS.get(symbol, DEFAULT_EXIT_PARAMS)
+            dir_int = 1 if pos.side == "LONG" else -1
+            
+            sim_pos = SimplifiedPosition(
+                direction=dir_int,
+                entry_price=pos.entry_price,
+                highest_price=pos.highest_price,
+                lowest_price=pos.lowest_price,
+                atr=pos.atr if pos.atr > 0 else (pos.entry_price * 0.008),
+                stop_loss=pos.stop_loss,
+                take_profit=pos.take_profit,
+                profit_lock_stage=pos.profit_lock_stage,
+                opened_at_bar=int(pos.opened_at)
+            )
+            
+            update_simplified_exit(sim_pos, curr_p, params)
+            pos.stop_loss = sim_pos.stop_loss
+            pos.profit_lock_stage = sim_pos.profit_lock_stage
+            
+            minutes_open = (time.time() - pos.opened_at) / 60.0
+            if check_time_decay(sim_pos, curr_p, minutes_open, params):
                 should_close = True
-                reason = "TIME_DECAY_STAGNATION (Rotación de Capital)"
-
-            # 2. Hyper-Chandelier Micro-Scalping Trailing Ratchet
-            if pos.side == "LONG":
-                peak_gain = (pos.highest_price - pos.entry_price) / pos.entry_price
-                if peak_gain >= hurdle_be and pos.profit_lock_stage < 1:
-                    pos.stop_loss = max(pos.stop_loss, pos.entry_price * 1.0010)
-                    pos.profit_lock_stage = 1
-                if peak_gain >= (hurdle_be * 1.5) and pos.profit_lock_stage < 2:
-                    pos.stop_loss = max(pos.stop_loss, pos.entry_price * 1.0035)
-                    pos.profit_lock_stage = 2
-                if peak_gain >= (hurdle_be * 2.0):
-                    trailing_sl = pos.highest_price * (1.0 - (0.35 * atr_pct))
-                    if trailing_sl > pos.stop_loss:
-                        pos.stop_loss = trailing_sl
-                        pos.profit_lock_stage = 3
-                # Etapa 4 Dinámica: Si es TREND_RUNNER deja correr hasta el TP; si es MEAN_REVERSION asegura el 85%
-                is_runner = getattr(pos, 'operation_type', '') in ['TREND_RUNNER', 'QUANTUM_AVALANCHE_SURGE']
-                if not is_runner and peak_gain >= (0.75 * micro_tp_gain):
-                    ultra_sl = pos.entry_price + (0.85 * (pos.highest_price - pos.entry_price))
-                    if ultra_sl > pos.stop_loss:
-                        pos.stop_loss = ultra_sl
-                        pos.profit_lock_stage = 4
-                elif is_runner and peak_gain >= (0.85 * micro_tp_gain):
-                    # En tendencia fuerte dejamos un colchón de 0.5x ATR para no ser sacados por una mecha
-                    runner_sl = pos.highest_price - (0.50 * pos.atr)
-                    if runner_sl > pos.stop_loss:
-                        pos.stop_loss = runner_sl
-                        pos.profit_lock_stage = 4
-
-                # Sincronizar Stop Loss nativo en Binance si cambió de nivel
-                if getattr(pos, '_last_synced_sl', 0.0) != pos.stop_loss:
-                    pos._last_synced_sl = pos.stop_loss
-                    asyncio.create_task(self.sync_native_binance_stop_loss(symbol, pos.stop_loss, pos.side, pos.units))
-
-                if curr_p <= pos.stop_loss:
-                    should_close = True
-                    reason = "PROFIT_LOCK_EXIT" if pos.stop_loss > pos.entry_price else "STOP_LOSS"
-                elif curr_p >= (pos.entry_price * (1.0 + micro_tp_gain)):
-                    should_close = True
-                    reason = "MICRO_SCALPING_TAKE_PROFIT"
-                elif curr_p >= pos.take_profit and pos.take_profit > pos.entry_price:
-                    should_close = True
-                    reason = f"TAKE_PROFIT ({getattr(pos, 'operation_type', 'SNIPER')})"
-
-            elif pos.side == "SHORT":
-                peak_gain = (pos.entry_price - pos.lowest_price) / pos.entry_price
-                if peak_gain >= hurdle_be and pos.profit_lock_stage < 1:
-                    pos.stop_loss = min(pos.stop_loss, pos.entry_price * 0.9990)
-                    pos.profit_lock_stage = 1
-                if peak_gain >= (hurdle_be * 1.5) and pos.profit_lock_stage < 2:
-                    pos.stop_loss = min(pos.stop_loss, pos.entry_price * 0.9965)
-                    pos.profit_lock_stage = 2
-                if peak_gain >= (hurdle_be * 2.0):
-                    trailing_sl = pos.lowest_price * (1.0 + (0.35 * atr_pct))
-                    if trailing_sl < pos.stop_loss:
-                        pos.stop_loss = trailing_sl
-                        pos.profit_lock_stage = 3
-                # Etapa 4 Dinámica: Si es TREND_RUNNER deja correr hasta el TP; si es MEAN_REVERSION asegura el 85%
-                is_runner = getattr(pos, 'operation_type', '') in ['TREND_RUNNER', 'QUANTUM_AVALANCHE_SURGE']
-                if not is_runner and peak_gain >= (0.75 * micro_tp_gain):
-                    ultra_sl = pos.entry_price - (0.85 * (pos.entry_price - pos.lowest_price))
-                    if ultra_sl < pos.stop_loss:
-                        pos.stop_loss = ultra_sl
-                        pos.profit_lock_stage = 4
-                elif is_runner and peak_gain >= (0.85 * micro_tp_gain):
-                    runner_sl = pos.lowest_price + (0.50 * pos.atr)
-                    if runner_sl < pos.stop_loss:
-                        pos.stop_loss = runner_sl
-                        pos.profit_lock_stage = 4
-
-                if curr_p >= pos.stop_loss:
-                    should_close = True
-                    reason = "PROFIT_LOCK_EXIT" if pos.stop_loss < pos.entry_price else "STOP_LOSS"
-                elif curr_p <= (pos.entry_price * (1.0 - micro_tp_gain)):
-                    should_close = True
-                    reason = "MICRO_SCALPING_TAKE_PROFIT"
-                elif curr_p <= pos.take_profit and pos.take_profit < pos.entry_price:
-                    should_close = True
-                    reason = f"TAKE_PROFIT ({getattr(pos, 'operation_type', 'SNIPER')})"
+                reason = "TURBO_TIME_DECAY (Rotación Rápida)"
+                
+            exit_price_trig, exit_reason = check_exit_trigger(sim_pos, high=curr_p, low=curr_p)
+            if exit_price_trig is not None:
+                should_close = True
+                reason = exit_reason
 
             if should_close:
                 await self.close_position(symbol, exit_price=curr_p, reason=reason)

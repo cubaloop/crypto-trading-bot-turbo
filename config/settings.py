@@ -18,13 +18,13 @@ class Settings(BaseSettings):
     host: str = os.getenv("HOST", "0.0.0.0")
     port: int = int(os.getenv("PORT", "8001"))
     
-    # Turbo Trading Parameters (Par Dedicado de Micro-Scalping)
+    # Turbo Trading Parameters (Par Dedicado de Micro-Scalping de Alta Frecuencia)
     symbols: List[str] = ["DOGE/USDT"]
     timeframe: str = "1m"
-    risk_per_trade_pct: float = 0.00  # MODO STANDBY (0% de capital asignado)
+    risk_per_trade_pct: float = 0.20  # ACTIVADO: 20% DE CAPITAL ASIGNADO
     max_daily_drawdown_pct: float = 0.05  # 5.0% circuit breaker
     initial_virtual_balance: float = 10000.0
-    price_poll_interval_seconds: float = 1.0  # Ultra-rápido (1 segundo)
+    price_poll_interval_seconds: float = 0.4  # Ultra-rápido (400ms)
     
     # News & NLP parameters
     cryptopanic_api_key: str = os.getenv("CRYPTOPANIC_API_KEY", "")
