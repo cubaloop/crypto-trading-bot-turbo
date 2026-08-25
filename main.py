@@ -163,17 +163,21 @@ class TurboTradingEngine:
                         current_position_side=None,
                         new_signal_action=signal.action
                     )
-                    if sentinel_eval["veto_entry"]:
-                        logger.warning(sentinel_eval["reason"])
+                    trade_allowed = False
+                    sentinel_veto = sentinel_eval.get("veto_entry", False)
+                    
+                    if sentinel_veto:
+                        logger.warning(sentinel_eval.get("reason", "Veto activo por Sentinel"))
                         trade_allowed = False
-                    elif sentinel_eval["shockwave_entry"] and symbol not in self.executor.positions:
+                    elif sentinel_eval.get("shockwave_entry") and symbol not in self.executor.positions:
                         logger.info(sentinel_eval["reason"])
                         signal.action = sentinel_eval["shockwave_entry"]
                         trade_allowed = True
-
-                    trade_allowed, reason = self.risk_manager.check_auto_reactivation(
-                        signal_conviction=signal.conviction
-                    )
+                    elif signal.action in ["BUY", "SELL"]:
+                        risk_ok, r_reason = self.risk_manager.check_auto_reactivation(
+                            signal_conviction=signal.conviction
+                        )
+                        trade_allowed = risk_ok
 
                     # CONSULTA AL BANCO DE MEMORIA
                     if trade_allowed and signal.action in ["BUY", "SELL"] and symbol not in self.executor.positions:
