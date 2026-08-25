@@ -77,7 +77,17 @@ class SimpleAutonomousEngine:
         else:
             return round(raw_units, 0)
 
-    async def execute_open(self, symbol: str, side: str, price: float, reason: str):
+    def detect_volatility_regime(self, history: List[float]) -> str:
+        if len(history) < 10:
+            return "NORMAL"
+        std_pct = float(np.std(history[-15:]) / np.mean(history[-15:]))
+        if std_pct >= 0.0012: # Alta volatilidad / Expansión
+            return "EXPLOSION"
+        elif std_pct <= 0.0003: # Baja volatilidad / Rango estrecho
+            return "RANGO"
+        return "NORMAL"
+
+    async def execute_open(self, symbol: str, side: str, price: float, reason: str, regime: str = "NORMAL"):
         market_symbol = f"{symbol.split('/')[0]}/USDT:USDT"
         notional_target = self.compute_dynamic_notional()
         amount = self.get_contract_amount(symbol, notional_target, price)
@@ -86,7 +96,7 @@ class SimpleAutonomousEngine:
             return
 
         order_side = "buy" if side == "LONG" else "sell"
-        logger.info(f"⚡ [DISPARO AUTÓNOMO] Abriendo {side} {amount} {symbol} (Notional: ${notional_target:.0f}) @ ${price:,.4f} | Razón: {reason}")
+        logger.info(f"⚡ [DISPARO AUTÓNOMO] Abriendo {side} {amount} {symbol} (Notional: ${notional_target:.0f} | Régimen: {regime}) @ ${price:,.4f} | Razón: {reason}")
         
         try:
             order = await self.exchange.create_order(
@@ -97,13 +107,23 @@ class SimpleAutonomousEngine:
             )
             fill_price = float(order.get('average') or order.get('price') or price)
             
-            # SL al 0.45% y TP al 0.60% (Micro-scalping ultra-rápido)
-            if side == "LONG":
-                sl = fill_price * 0.9955
-                tp = fill_price * 1.0060
+            # TP y SL Adaptativos al Régimen de Volatilidad en RAM
+            if regime == "EXPLOSION":
+                tp_mult = 0.0090  # +0.90% en expansión para dejar correr
+                sl_mult = 0.0055  # -0.55%
+            elif regime == "RANGO":
+                tp_mult = 0.0035  # +0.35% para raspar salida rápida
+                sl_mult = 0.0030  # -0.30%
             else:
-                sl = fill_price * 1.0045
-                tp = fill_price * 0.9940
+                tp_mult = 0.0060  # +0.60% estándar
+                sl_mult = 0.0045  # -0.45%
+
+            if side == "LONG":
+                sl = fill_price * (1.0 - sl_mult)
+                tp = fill_price * (1.0 + tp_mult)
+            else:
+                sl = fill_price * (1.0 + sl_mult)
+                tp = fill_price * (1.0 - tp_mult)
 
             self.positions[symbol] = {
                 "id": order.get('id', str(time.time())),
@@ -114,9 +134,10 @@ class SimpleAutonomousEngine:
                 "entry_price": fill_price,
                 "stop_loss": sl,
                 "take_profit": tp,
+                "regime": regime,
                 "opened_at": time.time()
             }
-            logger.info(f"✅ [POSICIÓN CONFIRMADA EN BINANCE] {side} {amount} {symbol} @ ${fill_price:,.4f} | TP: ${tp:,.4f} | SL: ${sl:,.4f}")
+            logger.info(f"✅ [POSICIÓN CONFIRMADA EN BINANCE] {side} {amount} {symbol} @ ${fill_price:,.4f} | TP: ${tp:,.4f} | SL: ${sl:,.4f} | Régimen: {regime}")
         except Exception as e:
             logger.error(f"❌ Error ejecutando apertura en Binance: {e}")
 
@@ -248,13 +269,14 @@ class SimpleAutonomousEngine:
                     # 3. Lógica Ultra-Básica de Disparo: Momentum y Ruptura Simple
                     elif len(self.positions) < 2 and len(history) >= 5:
                         recent_change = (current_price - history[-5]) / history[-5]
+                        regime = self.detect_volatility_regime(history)
                         
                         # Si hay un micro-impulso alcista (+0.04% en 5 ticks) -> COMPRA
                         if recent_change > 0.0004:
-                            await self.execute_open(symbol, "LONG", current_price, f"Impulso Alcista (+{recent_change:.3%})")
+                            await self.execute_open(symbol, "LONG", current_price, f"Impulso Alcista (+{recent_change:.3%})", regime)
                         # Si hay un micro-impulso bajista (-0.04% en 5 ticks) -> VENTA CORTA
                         elif recent_change < -0.0004:
-                            await self.execute_open(symbol, "SHORT", current_price, f"Impulso Bajista ({recent_change:.3%})")
+                            await self.execute_open(symbol, "SHORT", current_price, f"Impulso Bajista ({recent_change:.3%})", regime)
 
                 except Exception as e:
                     logger.debug(f"Error procesando {symbol}: {e}")
