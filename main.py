@@ -142,6 +142,7 @@ class TurboTradingEngine:
                 if self.iteration % 20 == 1:
                     logger.info(reflection_msg)
 
+                self.strategy.signal_threshold = dynamic_threshold
                 for symbol in config.symbols:
                     snapshot = await self.market_stream.fetch_snapshot(symbol)
                     if snapshot:
