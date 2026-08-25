@@ -131,19 +131,19 @@ class TurboStrategy:
         alpha_turbo = (0.35 * s_squeeze) + (0.35 * s_obi_accel) + (0.20 * s_momentum) + (0.10 * decayed_sentiment)
         conviction = float(np.clip(alpha_turbo, -1.0, 1.0))
 
-        # Disparadores con Filtro de Tendencia EMA 50 y Stops con espacio para respirar (1.8x ATR)
-        if conviction >= self.signal_threshold and trend_bullish:
+        # Disparadores de Micro-Scalping Ágiles (Ruptura Squeeze + Momentum)
+        if conviction >= self.signal_threshold:
             action = "BUY"
-            sl = snapshot.last_price - (1.8 * atr)  # Stop Loss con espacio para absorber volatilidad
-            tp1 = snapshot.last_price + (2.0 * atr)  # TP1 2.0x ATR
-            tp2 = snapshot.last_price + (3.5 * atr)  # TP2 3.5x ATR
-            reason = f"🚀 TURBO LONG | Squeeze %B: {pct_b:.2f} | dOBI/dt: {snapshot.obi_acceleration:+.2f} | Conv: {conviction:+.2f}"
-        elif conviction <= -self.signal_threshold and not trend_bullish:
+            sl = snapshot.last_price - (1.4 * atr)
+            tp1 = snapshot.last_price + (2.0 * atr)
+            tp2 = snapshot.last_price + (3.5 * atr)
+            reason = f"🚀 TURBO LONG | Squeeze %B: {pct_b:.2f} | Conv: {conviction:+.2f}"
+        elif conviction <= -self.signal_threshold:
             action = "SELL"
-            sl = snapshot.last_price + (1.8 * atr)
+            sl = snapshot.last_price + (1.4 * atr)
             tp1 = snapshot.last_price - (2.0 * atr)
             tp2 = snapshot.last_price - (3.5 * atr)
-            reason = f"🔻 TURBO SHORT | Squeeze %B: {pct_b:.2f} | dOBI/dt: {snapshot.obi_acceleration:+.2f} | Conv: {conviction:+.2f}"
+            reason = f"🔻 TURBO SHORT | Squeeze %B: {pct_b:.2f} | Conv: {conviction:+.2f}"
         else:
             action = "HOLD"
             sl = snapshot.last_price - (1.8 * atr)
