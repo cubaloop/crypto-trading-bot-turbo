@@ -5,7 +5,7 @@ from typing import List
 class Settings(BaseSettings):
     app_name: str = "KuQuant AI Turbo - 24/7 High-Frequency Momentum Scalper"
     environment: str = os.getenv("ENVIRONMENT", "production")
-    mode: str = os.getenv("TRADING_MODE", "paper")
+    mode: str = os.getenv("TRADING_MODE", "testnet")
     
     # Exchange configuration (Alimentación de datos L2 y Microestructura)
     exchange_id: str = os.getenv("EXCHANGE_ID", "bybit")
