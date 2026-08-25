@@ -16,9 +16,9 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%H:%M:%S"
 )
-logger = logging.getLogger("PureAutonomousScalper")
+logger = logging.getLogger("KuQuantTurboFullRAM")
 
-class SimpleAutonomousEngine:
+class TurboFullRAMEngine:
     def __init__(self):
         # Credenciales directas de Binance Testnet
         self.api_key = os.getenv("BINANCE_TESTNET_API_KEY", "LyS7ZwuG771PRgZSD7T2AoidqJ8FIGnHUrOElsphYMTZg7BQtgkvt8PTEO95zFXX")
@@ -42,9 +42,14 @@ class SimpleAutonomousEngine:
         self.price_history: Dict[str, List[float]] = {s: [] for s in self.symbols}
         self.is_running = False
         self.iteration = 0
+        
+        # Inteligencia Completa en RAM: Kelly por Racha
+        self.consecutive_wins = 0
+        self.consecutive_losses = 0
+        self.base_notional = 1800.0
 
     async def initialize(self):
-        logger.info("🚀 Inicializando Motor Puro en Binance Futures Testnet...")
+        logger.info("🔥 Inicializando KuQuant TURBO (Inteligencia RAM Completa: Kelly + Régimen + OBI + Trailing)...")
         try:
             await self.data_feed.load_markets()
             balance = await self.exchange.fetch_balance()
@@ -52,6 +57,25 @@ class SimpleAutonomousEngine:
             logger.info(f"💰 Balance Libre en Binance Testnet: ${usdt_free:,.2f} USDT")
         except Exception as e:
             logger.warning(f"Aviso en inicialización: {e}")
+
+    # 1. Dimensionamiento Inteligente por Racha (Kelly en RAM)
+    def compute_dynamic_notional(self) -> float:
+        if self.consecutive_wins >= 2:
+            return min(2500.0, self.base_notional + (self.consecutive_wins * 250.0))
+        elif self.consecutive_losses >= 2:
+            return max(600.0, self.base_notional - (self.consecutive_losses * 400.0))
+        return self.base_notional
+
+    # 2. Detección Local de Régimen de Volatilidad (Rango vs Explosión en RAM)
+    def detect_volatility_regime(self, history: List[float]) -> str:
+        if len(history) < 10:
+            return "NORMAL"
+        std_pct = float(np.std(history[-15:]) / np.mean(history[-15:]))
+        if std_pct >= 0.0012:
+            return "EXPLOSION"
+        elif std_pct <= 0.0003:
+            return "RANGO"
+        return "NORMAL"
 
     def get_contract_amount(self, symbol: str, notional_usd: float, price: float) -> float:
         base = symbol.split('/')[0]
@@ -63,16 +87,16 @@ class SimpleAutonomousEngine:
         else:
             return round(raw_units, 0)
 
-    async def execute_open(self, symbol: str, side: str, price: float, reason: str):
+    async def execute_open(self, symbol: str, side: str, price: float, reason: str, regime: str = "NORMAL"):
         market_symbol = f"{symbol.split('/')[0]}/USDT:USDT"
-        notional_target = 1800.0  # Asignación real de $1,800 USD por operación
+        notional_target = self.compute_dynamic_notional()
         amount = self.get_contract_amount(symbol, notional_target, price)
         
         if amount <= 0:
             return
 
         order_side = "buy" if side == "LONG" else "sell"
-        logger.info(f"⚡ [DISPARO AUTÓNOMO] Abriendo {side} {amount} {symbol} ($1,800 USD) @ ${price:,.4f} | Razón: {reason}")
+        logger.info(f"⚡ [TURBO DISPARO] {side} {amount} {symbol} (${notional_target:.0f} USD | Régimen: {regime}) @ ${price:,.4f} | Razón: {reason}")
         
         try:
             order = await self.exchange.create_order(
@@ -83,13 +107,23 @@ class SimpleAutonomousEngine:
             )
             fill_price = float(order.get('average') or order.get('price') or price)
             
-            # SL al 0.50% y TP al 0.80% para asegurar profit neto claro
-            if side == "LONG":
-                sl = fill_price * 0.9950
-                tp = fill_price * 1.0080
+            # TP y SL Adaptativos al Régimen en RAM
+            if regime == "EXPLOSION":
+                tp_mult = 0.0120  # +1.20%
+                sl_mult = 0.0070  # -0.70%
+            elif regime == "RANGO":
+                tp_mult = 0.0060  # +0.60%
+                sl_mult = 0.0040  # -0.40%
             else:
-                sl = fill_price * 1.0050
-                tp = fill_price * 0.9920
+                tp_mult = 0.0080  # +0.80% estándar
+                sl_mult = 0.0050  # -0.50%
+
+            if side == "LONG":
+                sl = fill_price * (1.0 - sl_mult)
+                tp = fill_price * (1.0 + tp_mult)
+            else:
+                sl = fill_price * (1.0 + sl_mult)
+                tp = fill_price * (1.0 - tp_mult)
 
             self.positions[symbol] = {
                 "id": order.get('id', str(time.time())),
@@ -101,9 +135,10 @@ class SimpleAutonomousEngine:
                 "stop_loss": sl,
                 "take_profit": tp,
                 "peak_price": fill_price,
+                "regime": regime,
                 "opened_at": time.time()
             }
-            logger.info(f"✅ [POSICIÓN CONFIRMADA EN BINANCE] {side} {amount} {symbol} @ ${fill_price:,.4f} | TP: ${tp:,.4f} | SL: ${sl:,.4f}")
+            logger.info(f"✅ [TURBO CONFIRMADO] {side} {amount} {symbol} @ ${fill_price:,.4f} | TP: ${tp:,.4f} | SL: ${sl:,.4f}")
         except Exception as e:
             logger.error(f"❌ Error ejecutando apertura en Binance: {e}")
 
@@ -116,7 +151,7 @@ class SimpleAutonomousEngine:
         close_side = "sell" if pos["side"] == "LONG" else "buy"
         amount = pos["units"]
 
-        logger.info(f"🎯 [CIERRE AUTÓNOMO] Liquidando {pos['side']} {amount} {symbol} @ ${current_price:,.4f} | Razón: {reason}")
+        logger.info(f"🎯 [TURBO CIERRE] Liquidando {pos['side']} {amount} {symbol} @ ${current_price:,.4f} | Razón: {reason}")
         try:
             await self.exchange.create_order(
                 symbol=market_symbol,
@@ -126,7 +161,19 @@ class SimpleAutonomousEngine:
                 params={'reduceOnly': True}
             )
             pnl = (current_price - pos['entry_price']) * amount if pos['side'] == "LONG" else (pos['entry_price'] - current_price) * amount
-            logger.info(f"🏆 [POSICIÓN CERRADA CON ÉXITO] {symbol} | PnL Estimado: ${pnl:+.2f} USDT")
+            
+            # Actualización de racha Kelly en RAM
+            if pnl > 0.10:
+                self.consecutive_wins += 1
+                self.consecutive_losses = 0
+                logger.info(f"🏆 [TURBO GANANCIA] {symbol} PnL: ${pnl:+.2f} USDT | Racha Victorias: {self.consecutive_wins}")
+            elif pnl < -0.10:
+                self.consecutive_losses += 1
+                self.consecutive_wins = 0
+                logger.info(f"⚠️ [TURBO PÉRDIDA] {symbol} PnL: ${pnl:+.2f} USDT | Racha Pérdidas: {self.consecutive_losses}")
+            else:
+                logger.info(f"⚖️ [TURBO BREAKEVEN] {symbol} PnL: ${pnl:+.2f} USDT")
+
             del self.positions[symbol]
         except Exception as e:
             logger.error(f"❌ Error cerrando posición en Binance: {e}")
@@ -135,27 +182,25 @@ class SimpleAutonomousEngine:
         self.is_running = True
         await self.initialize()
 
-        logger.info("🟢 Bucle de Trading Autónomo Puro Iniciado.")
+        logger.info("🟢 Bucle de Trading Autónomo TURBO (Inteligencia RAM Completa) Iniciado.")
         
         while self.is_running:
             self.iteration += 1
             
             for symbol in self.symbols:
                 try:
-                    # 1. Obtener precio en vivo
                     ticker = await self.data_feed.fetch_ticker(symbol)
                     current_price = float(ticker.get('last') or ticker.get('close') or 0.0)
                     
                     if current_price <= 0:
                         continue
 
-                    # Guardar historial de ticks en RAM
                     history = self.price_history[symbol]
                     history.append(current_price)
                     if len(history) > 30:
                         self.price_history[symbol] = history[-30:]
 
-                    # 2. Gestionar salidas de posiciones abiertas (TP / SL / Trailing / Breakeven)
+                    # Salidas Inteligentes en RAM (Breakeven + Trailing Stop)
                     if symbol in self.positions:
                         pos = self.positions[symbol]
                         entry_p = pos["entry_price"]
@@ -163,7 +208,6 @@ class SimpleAutonomousEngine:
                         sl = pos["stop_loss"]
                         tp = pos["take_profit"]
 
-                        # Actualizar pico de precio en RAM
                         if side == "LONG":
                             if current_price > pos["peak_price"]:
                                 pos["peak_price"] = current_price
@@ -196,29 +240,32 @@ class SimpleAutonomousEngine:
                                 if new_trailing < pos["stop_loss"]:
                                     pos["stop_loss"] = new_trailing
 
-                        # Cierre por Take Profit o Stop Loss / Trailing (NO se cierra por tiempo para dejar buscar profit)
                         if (side == "LONG" and current_price >= tp) or (side == "SHORT" and current_price <= tp):
                             await self.execute_close(symbol, current_price, "TAKE_PROFIT_ALCANZADO")
                         elif (side == "LONG" and current_price <= pos["stop_loss"]) or (side == "SHORT" and current_price >= pos["stop_loss"]):
                             reason = "TRAILING_STOP_EJECUTADO" if (pos["stop_loss"] > entry_p if side == "LONG" else pos["stop_loss"] < entry_p) else "STOP_LOSS_ACTIVADO"
                             await self.execute_close(symbol, current_price, reason)
 
-                    # 3. Lógica Ultra-Básica Directa en RAM: Momentum y Ruptura Simple
+                    # 3. Lógica de Disparo: Micro-Momentum + Filtro OBI en RAM
                     elif len(self.positions) < 3 and len(history) >= 4:
                         recent_change = (current_price - history[-4]) / history[-4]
+                        regime = self.detect_volatility_regime(history)
                         
-                        # Micro-impulso alcista (+0.03% en 4 ticks) -> COMPRA
-                        if recent_change > 0.0003:
-                            await self.execute_open(symbol, "LONG", current_price, f"Impulso Alcista (+{recent_change:.3%})")
-                        # Micro-impulso bajista (-0.03% en 4 ticks) -> VENTA CORTA
-                        elif recent_change < -0.0003:
-                            await self.execute_open(symbol, "SHORT", current_price, f"Impulso Bajista ({recent_change:.3%})")
+                        bid_vol = float(ticker.get('bidVolume', 0.0) or 0.0)
+                        ask_vol = float(ticker.get('askVolume', 0.0) or 0.0)
+                        total_vol = bid_vol + ask_vol
+                        obi = (bid_vol - ask_vol) / total_vol if total_vol > 0 else 0.0
+                        
+                        if recent_change > 0.0003 and obi >= -0.40:
+                            await self.execute_open(symbol, "LONG", current_price, f"Impulso Alcista (+{recent_change:.3%} | OBI: {obi:+.2f})", regime)
+                        elif recent_change < -0.0003 and obi <= 0.40:
+                            await self.execute_open(symbol, "SHORT", current_price, f"Impulso Bajista ({recent_change:.3%} | OBI: {obi:+.2f})", regime)
 
                 except Exception as e:
                     logger.debug(f"Error procesando {symbol}: {e}")
 
             if self.iteration % 15 == 0:
-                logger.info(f"📊 [MONITOR EN VIVO #{self.iteration}] Posiciones Activas: {len(self.positions)}")
+                logger.info(f"📊 [TURBO EN VIVO #{self.iteration}] Posiciones Activas: {len(self.positions)}")
 
             await asyncio.sleep(1.0)
 
@@ -228,7 +275,7 @@ class SimpleAutonomousEngine:
         await self.data_feed.close()
 
 if __name__ == "__main__":
-    bot = SimpleAutonomousEngine()
+    bot = TurboFullRAMEngine()
     try:
         asyncio.run(bot.run())
     except (KeyboardInterrupt, SystemExit):
