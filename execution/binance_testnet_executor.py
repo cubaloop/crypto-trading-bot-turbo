@@ -156,7 +156,6 @@ class BinanceTestnetExecutorTurbo:
             logger.info(
                 f"⚡ [ORDEN REAL BINANCE TURBO] {signal.action} {actual_units} {signal.symbol} @ ${fill_price:,.4f} | ID: {pos_id}"
             )
-            asyncio.create_task(self.sync_native_binance_stop_loss(signal.symbol, pos.stop_loss, pos.side, pos.units))
             return pos
         except Exception as e:
             logger.error(f"Error ejecutando orden real en Binance Testnet para TURBO: {e}")
