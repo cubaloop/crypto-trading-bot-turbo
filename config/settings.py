@@ -7,8 +7,8 @@ class Settings(BaseSettings):
     environment: str = os.getenv("ENVIRONMENT", "production")
     mode: str = os.getenv("TRADING_MODE", "paper")
     
-    # Exchange configuration
-    exchange_id: str = os.getenv("EXCHANGE_ID", "kucoin")
+    # Exchange configuration (Alimentación de datos L2 y Microestructura)
+    exchange_id: str = os.getenv("EXCHANGE_ID", "bybit")
     api_key: str = os.getenv("API_KEY", "")
     api_secret: str = os.getenv("API_SECRET", "")
     api_passphrase: str = os.getenv("API_PASSPHRASE", "")
