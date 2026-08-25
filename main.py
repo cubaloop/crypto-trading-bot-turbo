@@ -42,6 +42,11 @@ class SimpleAutonomousEngine:
         self.price_history: Dict[str, List[float]] = {s: [] for s in self.symbols}
         self.is_running = False
         self.iteration = 0
+        
+        # Inteligencia en RAM: Contador de Rachas (Kelly Dinámico)
+        self.consecutive_wins = 0
+        self.consecutive_losses = 0
+        self.base_notional = 400.0
 
     async def initialize(self):
         logger.info("🚀 Inicializando Motor Puro Ultra-Básico en Binance Futures Testnet...")
@@ -52,6 +57,15 @@ class SimpleAutonomousEngine:
             logger.info(f"💰 Balance Libre en Binance Testnet: ${usdt_free:,.2f} USDT")
         except Exception as e:
             logger.warning(f"Aviso en inicialización: {e}")
+
+    def compute_dynamic_notional(self) -> float:
+        # Si viene en racha ganadora (>=2 wins) -> escala a $550 USDT
+        if self.consecutive_wins >= 2:
+            return min(600.0, self.base_notional + (self.consecutive_wins * 50.0))
+        # Si sufre racha perdedora (>=2 losses) -> reduce a $200 USDT para proteger
+        elif self.consecutive_losses >= 2:
+            return max(150.0, self.base_notional - (self.consecutive_losses * 100.0))
+        return self.base_notional
 
     def get_contract_amount(self, symbol: str, notional_usd: float, price: float) -> float:
         base = symbol.split('/')[0]
@@ -65,14 +79,14 @@ class SimpleAutonomousEngine:
 
     async def execute_open(self, symbol: str, side: str, price: float, reason: str):
         market_symbol = f"{symbol.split('/')[0]}/USDT:USDT"
-        notional_target = 400.0  # Posición fija y segura de $400 USD
+        notional_target = self.compute_dynamic_notional()
         amount = self.get_contract_amount(symbol, notional_target, price)
         
         if amount <= 0:
             return
 
         order_side = "buy" if side == "LONG" else "sell"
-        logger.info(f"⚡ [DISPARO AUTÓNOMO] Abriendo {side} {amount} {symbol} @ ${price:,.4f} | Razón: {reason}")
+        logger.info(f"⚡ [DISPARO AUTÓNOMO] Abriendo {side} {amount} {symbol} (Notional: ${notional_target:.0f}) @ ${price:,.4f} | Razón: {reason}")
         
         try:
             order = await self.exchange.create_order(
@@ -125,7 +139,19 @@ class SimpleAutonomousEngine:
                 params={'reduceOnly': True}
             )
             pnl = (current_price - pos['entry_price']) * amount if pos['side'] == "LONG" else (pos['entry_price'] - current_price) * amount
-            logger.info(f"🏆 [POSICIÓN CERRADA CON ÉXITO] {symbol} | PnL Estimado: ${pnl:+.2f} USDT")
+            
+            # Actualizar racha en RAM
+            if pnl > 0.05:
+                self.consecutive_wins += 1
+                self.consecutive_losses = 0
+                logger.info(f"🏆 [GANANCIA] {symbol} PnL: ${pnl:+.2f} USDT | Racha Victorias: {self.consecutive_wins}")
+            elif pnl < -0.05:
+                self.consecutive_losses += 1
+                self.consecutive_wins = 0
+                logger.info(f"⚠️ [PÉRDIDA] {symbol} PnL: ${pnl:+.2f} USDT | Racha Pérdidas: {self.consecutive_losses}")
+            else:
+                logger.info(f"⚖️ [BREAKEVEN] {symbol} PnL: ${pnl:+.2f} USDT")
+
             del self.positions[symbol]
         except Exception as e:
             logger.error(f"❌ Error cerrando posición en Binance: {e}")
@@ -212,7 +238,10 @@ class SimpleAutonomousEngine:
                             is_trailing = (pos["stop_loss"] > entry_p) if side == "LONG" else (pos["stop_loss"] < entry_p)
                             reason = "TRAILING_STOP_EJECUTADO" if is_trailing else "STOP_LOSS_ACTIVADO"
                             await self.execute_close(symbol, current_price, reason)
-                        # Time-Stop (90s de rotación)
+                        # Time-Stop Adaptativo (30s si no hay impulso a favor > 0.05%)
+                        elif age_seconds >= 30.0 and pnl_pct < 0.0005:
+                            await self.execute_close(symbol, current_price, f"SALIDA_ESTANCAMIENTO_{int(age_seconds)}s")
+                        # Time-Stop Máximo (90s de rotación)
                         elif age_seconds >= 90.0:
                             await self.execute_close(symbol, current_price, f"ROTACION_TIEMPO_{int(age_seconds)}s")
 
