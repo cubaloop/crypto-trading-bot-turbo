@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     host: str = os.getenv("HOST", "0.0.0.0")
     port: int = int(os.getenv("PORT", "8001"))
     
-    # Turbo Trading Parameters (Universo Multi-Par de Memecoins & Micro-Scalping de Alta Velocidad)
-    symbols: List[str] = ["DOGE/USDT", "PEPE/USDT", "SHIB/USDT", "FLOKI/USDT", "BONK/USDT", "WIF/USDT"]
+    # Turbo Trading Parameters (Universo Multi-Par Líquido en Binance Futures Testnet)
+    symbols: List[str] = ["DOGE/USDT", "BTC/USDT", "ETH/USDT", "SOL/USDT", "NEAR/USDT"]
     timeframe: str = "1m"
     risk_per_trade_pct: float = 0.20  # ACTIVADO: 20% DE CAPITAL ASIGNADO
     max_daily_drawdown_pct: float = 0.05  # 5.0% circuit breaker
