@@ -16,15 +16,14 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%H:%M:%S"
 )
-logger = logging.getLogger("KuQuantTurboFullRAM")
+logger = logging.getLogger("KuQuantTurboInstitutional")
 
-class TurboFullRAMEngine:
+class TurboInstitutionalEngine:
     def __init__(self):
         # Credenciales directas de Binance Testnet
         self.api_key = os.getenv("BINANCE_TESTNET_API_KEY", "LyS7ZwuG771PRgZSD7T2AoidqJ8FIGnHUrOElsphYMTZg7BQtgkvt8PTEO95zFXX")
         self.api_secret = os.getenv("BINANCE_TESTNET_API_SECRET", "EVWlkCZIJAYRe8bgw7Xu7hRamRqjyWxgEms0zzKTPkHwKTU0ALJxUKSJwUhb7gy6")
         
-        # Conexión directa con CCXT a Binance Futures Testnet
         self.exchange = ccxt_async.binanceusdm({
             'apiKey': self.api_key,
             'secret': self.api_secret,
@@ -32,24 +31,22 @@ class TurboFullRAMEngine:
             'options': {'defaultType': 'future'}
         })
         self.exchange.set_sandbox_mode(True)
-        
-        # Conexión Bybit pública para lectura limpia de precios y libros
         self.data_feed = ccxt_async.bybit({'enableRateLimit': True, 'timeout': 5000})
         
         # Universo de pares activos
-        self.symbols = ["DOGE/USDT", "SOL/USDT", "BTC/USDT", "ETH/USDT", "NEAR/USDT"]
+        self.symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "DOGE/USDT", "NEAR/USDT"]
         self.positions: Dict[str, Dict] = {}
         self.price_history: Dict[str, List[float]] = {s: [] for s in self.symbols}
         self.is_running = False
         self.iteration = 0
         
-        # Inteligencia Completa en RAM: Kelly por Racha
+        # Asignación Fuerte y Escalado Kelly en RAM
         self.consecutive_wins = 0
         self.consecutive_losses = 0
-        self.base_notional = 1800.0
+        self.base_notional = 2200.0  # Asignación base fuerte de $2,200 USD
 
     async def initialize(self):
-        logger.info("🔥 Inicializando KuQuant TURBO (Inteligencia RAM Completa: Kelly + Régimen + OBI + Trailing)...")
+        logger.info("🔥 Inicializando KuQuant TURBO (Margen Holgado Institucional: TP1 + Runner)...")
         try:
             await self.data_feed.load_markets()
             balance = await self.exchange.fetch_balance()
@@ -58,15 +55,13 @@ class TurboFullRAMEngine:
         except Exception as e:
             logger.warning(f"Aviso en inicialización: {e}")
 
-    # 1. Dimensionamiento Inteligente por Racha (Kelly en RAM)
     def compute_dynamic_notional(self) -> float:
         if self.consecutive_wins >= 2:
-            return min(2500.0, self.base_notional + (self.consecutive_wins * 250.0))
+            return min(3200.0, self.base_notional + (self.consecutive_wins * 350.0))
         elif self.consecutive_losses >= 2:
-            return max(600.0, self.base_notional - (self.consecutive_losses * 400.0))
+            return max(1200.0, self.base_notional - (self.consecutive_losses * 400.0))
         return self.base_notional
 
-    # 2. Detección Local de Régimen de Volatilidad (Rango vs Explosión en RAM)
     def detect_volatility_regime(self, history: List[float]) -> str:
         if len(history) < 10:
             return "NORMAL"
@@ -107,16 +102,9 @@ class TurboFullRAMEngine:
             )
             fill_price = float(order.get('average') or order.get('price') or price)
             
-            # TP y SL Adaptativos al Régimen en RAM
-            if regime == "EXPLOSION":
-                tp_mult = 0.0120  # +1.20%
-                sl_mult = 0.0070  # -0.70%
-            elif regime == "RANGO":
-                tp_mult = 0.0060  # +0.60%
-                sl_mult = 0.0040  # -0.40%
-            else:
-                tp_mult = 0.0080  # +0.80% estándar
-                sl_mult = 0.0050  # -0.50%
+            # Margen Holgado: TP Final al +3.50% ($75 - $110 USD) y SL al -1.20%
+            tp_mult = 0.0350
+            sl_mult = 0.0120
 
             if side == "LONG":
                 sl = fill_price * (1.0 - sl_mult)
@@ -136,9 +124,10 @@ class TurboFullRAMEngine:
                 "take_profit": tp,
                 "peak_price": fill_price,
                 "regime": regime,
+                "tp1_reached": False,
                 "opened_at": time.time()
             }
-            logger.info(f"✅ [TURBO CONFIRMADO] {side} {amount} {symbol} @ ${fill_price:,.4f} | TP: ${tp:,.4f} | SL: ${sl:,.4f}")
+            logger.info(f"✅ [TURBO CONFIRMADO] {side} {amount} {symbol} @ ${fill_price:,.4f} | TP1: +1.50% | Runner: ${tp:,.4f} | SL: ${sl:,.4f}")
         except Exception as e:
             logger.error(f"❌ Error ejecutando apertura en Binance: {e}")
 
@@ -162,12 +151,11 @@ class TurboFullRAMEngine:
             )
             pnl = (current_price - pos['entry_price']) * amount if pos['side'] == "LONG" else (pos['entry_price'] - current_price) * amount
             
-            # Actualización de racha Kelly en RAM
-            if pnl > 0.10:
+            if pnl > 1.0:
                 self.consecutive_wins += 1
                 self.consecutive_losses = 0
                 logger.info(f"🏆 [TURBO GANANCIA] {symbol} PnL: ${pnl:+.2f} USDT | Racha Victorias: {self.consecutive_wins}")
-            elif pnl < -0.10:
+            elif pnl < -1.0:
                 self.consecutive_losses += 1
                 self.consecutive_wins = 0
                 logger.info(f"⚠️ [TURBO PÉRDIDA] {symbol} PnL: ${pnl:+.2f} USDT | Racha Pérdidas: {self.consecutive_losses}")
@@ -182,7 +170,7 @@ class TurboFullRAMEngine:
         self.is_running = True
         await self.initialize()
 
-        logger.info("🟢 Bucle de Trading Autónomo TURBO (Inteligencia RAM Completa) Iniciado.")
+        logger.info("🟢 Bucle Autónomo TURBO (Margen Holgado Institucional) Iniciado.")
         
         while self.is_running:
             self.iteration += 1
@@ -200,7 +188,7 @@ class TurboFullRAMEngine:
                     if len(history) > 30:
                         self.price_history[symbol] = history[-30:]
 
-                    # Salidas Inteligentes en RAM (Breakeven + Trailing Stop)
+                    # Salidas con Gestión Institucional Holgada en RAM
                     if symbol in self.positions:
                         pos = self.positions[symbol]
                         entry_p = pos["entry_price"]
@@ -213,41 +201,57 @@ class TurboFullRAMEngine:
                                 pos["peak_price"] = current_price
                             pnl_pct = (current_price - entry_p) / entry_p
 
-                            # Breakeven en RAM (+0.30% ganancia -> SL a Entrada + 0.08%)
-                            if pnl_pct >= 0.0030 and sl < entry_p * 1.0008:
-                                pos["stop_loss"] = entry_p * 1.0008
-                                logger.info(f"🛡️ [BREAKEVEN ACTIVADO] {symbol} LONG asegurado a ${pos['stop_loss']:,.4f}")
+                            # 1. Breakeven al +0.80% a favor -> Asegura Entrada + 0.25% ganancia neta ($5 - $7 USD)
+                            if pnl_pct >= 0.0080 and sl < entry_p * 1.0025:
+                                pos["stop_loss"] = entry_p * 1.0025
+                                logger.info(f"🛡️ [TURBO BREAKEVEN] {symbol} LONG asegurado a ${pos['stop_loss']:,.4f}")
 
-                            # Trailing Stop en RAM (+0.50% ganancia -> persigue a 0.25% del pico)
-                            if pnl_pct >= 0.0050:
-                                new_trailing = pos["peak_price"] * 0.9975
+                            # 2. TP1 Institucional (+1.50% -> Asegura +0.80% en Stop Loss)
+                            if pnl_pct >= 0.0150 and not pos.get("tp1_reached", False):
+                                pos["tp1_reached"] = True
+                                pos["stop_loss"] = entry_p * 1.0080
+                                logger.info(f"🎯 [TURBO TP1 ALCANZADO (+1.50%)] {symbol} Stop Loss elevado a ${pos['stop_loss']:,.4f}")
+
+                            # 3. Trailing Runner (+2.00% en adelante -> persigue a 0.60% del pico)
+                            if pnl_pct >= 0.0200:
+                                new_trailing = pos["peak_price"] * 0.9940
                                 if new_trailing > pos["stop_loss"]:
                                     pos["stop_loss"] = new_trailing
+                                    logger.info(f"📈 [TURBO TRAILING RUNNER] {symbol} SL elevado a ${new_trailing:,.4f}")
 
                         else:  # SHORT
                             if current_price < pos["peak_price"]:
                                 pos["peak_price"] = current_price
                             pnl_pct = (entry_p - current_price) / entry_p
 
-                            # Breakeven en RAM
-                            if pnl_pct >= 0.0030 and sl > entry_p * 0.9992:
-                                pos["stop_loss"] = entry_p * 0.9992
-                                logger.info(f"🛡️ [BREAKEVEN ACTIVADO] {symbol} SHORT asegurado a ${pos['stop_loss']:,.4f}")
+                            # 1. Breakeven al +0.80% a favor -> Asegura Entrada - 0.25% ganancia neta
+                            if pnl_pct >= 0.0080 and sl > entry_p * 0.9975:
+                                pos["stop_loss"] = entry_p * 0.9975
+                                logger.info(f"🛡️ [TURBO BREAKEVEN] {symbol} SHORT asegurado a ${pos['stop_loss']:,.4f}")
 
-                            # Trailing Stop en RAM
-                            if pnl_pct >= 0.0050:
-                                new_trailing = pos["peak_price"] * 1.0025
+                            # 2. TP1 Institucional (+1.50% -> Asegura +0.80% en Stop Loss)
+                            if pnl_pct >= 0.0150 and not pos.get("tp1_reached", False):
+                                pos["tp1_reached"] = True
+                                pos["stop_loss"] = entry_p * 0.9920
+                                logger.info(f"🎯 [TURBO TP1 ALCANZADO (+1.50%)] {symbol} Stop Loss bajado a ${pos['stop_loss']:,.4f}")
+
+                            # 3. Trailing Runner (+2.00% en adelante -> persigue a 0.60% del pico)
+                            if pnl_pct >= 0.0200:
+                                new_trailing = pos["peak_price"] * 1.0060
                                 if new_trailing < pos["stop_loss"]:
                                     pos["stop_loss"] = new_trailing
+                                    logger.info(f"📈 [TURBO TRAILING RUNNER] {symbol} SL bajado a ${new_trailing:,.4f}")
 
+                        # Cierre por TP Final Runner o Trailing Stop
                         if (side == "LONG" and current_price >= tp) or (side == "SHORT" and current_price <= tp):
-                            await self.execute_close(symbol, current_price, "TAKE_PROFIT_ALCANZADO")
+                            await self.execute_close(symbol, current_price, "TAKE_PROFIT_RUNNER_ALCANZADO (+3.50%)")
                         elif (side == "LONG" and current_price <= pos["stop_loss"]) or (side == "SHORT" and current_price >= pos["stop_loss"]):
-                            reason = "TRAILING_STOP_EJECUTADO" if (pos["stop_loss"] > entry_p if side == "LONG" else pos["stop_loss"] < entry_p) else "STOP_LOSS_ACTIVADO"
+                            is_trailing = (pos["stop_loss"] > entry_p) if side == "LONG" else (pos["stop_loss"] < entry_p)
+                            reason = "TRAILING_STOP_EJECUTADO" if is_trailing else "STOP_LOSS_ACTIVADO"
                             await self.execute_close(symbol, current_price, reason)
 
-                    # 3. Lógica de Disparo: Micro-Momentum + Filtro OBI en RAM
-                    elif len(self.positions) < 3 and len(history) >= 4:
+                    # 3. Lógica de Disparo: Micro-Momentum + OBI en RAM
+                    elif len(self.positions) < 2 and len(history) >= 4:
                         recent_change = (current_price - history[-4]) / history[-4]
                         regime = self.detect_volatility_regime(history)
                         
@@ -275,7 +279,7 @@ class TurboFullRAMEngine:
         await self.data_feed.close()
 
 if __name__ == "__main__":
-    bot = TurboFullRAMEngine()
+    bot = TurboInstitutionalEngine()
     try:
         asyncio.run(bot.run())
     except (KeyboardInterrupt, SystemExit):
