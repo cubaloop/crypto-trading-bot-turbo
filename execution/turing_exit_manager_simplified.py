@@ -1,22 +1,30 @@
-"""
-turing_exit_manager_simplified.py — Exit Manager ultra-sensible para TURBO
-"""
-
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
 @dataclass
 class SimplifiedExitParams:
-    stage1_atr_mult: float = 0.8
-    stage2_atr_mult: float = 1.4
-    stage2_lock_pct: float = 0.80
-    tp_atr_mult: float = 1.80
-    fee_buffer_pct: float = 0.0008
-    time_decay_window_minutes: float = 20.0  # Ultra rápido (20 min)
+    # v2 calibrada tras análisis de backtest de 30 días:
+    # - stage1 subido de 1.0x a 1.75x ATR para evitar falsos breakevens en SOL/NEAR
+    # - stage2 subido de 2.0x a 2.5x ATR
+    # - stage2_lock_pct subido de 78% a 82% (más protección cuando sí se llega)
+    # - tp_atr_mult subido de 2.75x a 3.5x ATR
+    stage1_atr_mult: float = 1.75
+    stage2_atr_mult: float = 2.5
+    stage2_lock_pct: float = 0.82
+    tp_atr_mult: float = 3.5
+    fee_buffer_pct: float = 0.0010          # cubre fees ida+vuelta (~0.08-0.10%) con margen
+    time_decay_window_minutes: float = 40.0
 
 SYMBOL_EXIT_PARAMS: Dict[str, SimplifiedExitParams] = {
-    "DOGE/USDT": SimplifiedExitParams(time_decay_window_minutes=20.0),
-    "DOGEUSDT": SimplifiedExitParams(time_decay_window_minutes=20.0),
+    # Pares aprobados para despliegue tras backtest de 30 días (v2 calibrada):
+    "BTCUSDT":   SimplifiedExitParams(time_decay_window_minutes=40.0),
+    "BTC/USDT":  SimplifiedExitParams(time_decay_window_minutes=40.0),
+    "SOLUSDT":   SimplifiedExitParams(time_decay_window_minutes=40.0),
+    "SOL/USDT":  SimplifiedExitParams(time_decay_window_minutes=40.0),
+    "DOGEUSDT":  SimplifiedExitParams(time_decay_window_minutes=40.0),
+    "DOGE/USDT": SimplifiedExitParams(time_decay_window_minutes=40.0),
+
+    # NEAR y ETH EXCLUIDOS EXPLÍCITAMENTE
 }
 DEFAULT_EXIT_PARAMS = SimplifiedExitParams()
 
